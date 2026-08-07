@@ -57,7 +57,7 @@ The app runs with normal user rights (`asInvoker`). See [Troubleshooting](#troub
 That's it. On the first run `Run.bat` builds the project in Release mode (once), then launches the app. Every run after that starts the app immediately — no terminal required.
 
 ```bash
-git clone https://github.com/<your-username>/<your-repo>.git
+git clone https://github.com/mrsoulcommunity/ClickerApp.git
 ```
 
 ### The manual way
@@ -144,6 +144,7 @@ The file is written automatically shortly after any change and again on exit. If
 │   ├── app.manifest              # DPI awareness, execution level, OS support
 │   ├── ClickerApp.csproj
 │   └── Program.cs                # Entry point
+├── .gitattributes                # Line-ending rules (CRLF for .bat)
 ├── .gitignore
 ├── README.md
 └── Run.bat                       # One-click build-and-launch script
