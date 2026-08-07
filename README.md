@@ -2,7 +2,7 @@
 
 A lightweight Windows desktop automation tool that repeats a **key press → mouse click** sequence at configurable intervals. Built with .NET 8 and Windows Forms, with a clean flat UI, saved profiles, and global hotkeys so you can start and stop it without leaving the window you're working in.
 
----
+--- 
 
 ## Table of contents
 
