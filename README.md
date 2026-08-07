@@ -146,6 +146,7 @@ The file is written automatically shortly after any change and again on exit. If
 │   └── Program.cs                # Entry point
 ├── .gitattributes                # Line-ending rules (CRLF for .bat)
 ├── .gitignore
+├── LICENSE                       # MIT
 ├── README.md
 └── Run.bat                       # One-click build-and-launch script
 ```
@@ -213,4 +214,4 @@ This tool synthesizes real keyboard and mouse input at the operating-system leve
 
 ## License
 
-No license has been specified yet. Until one is added, all rights are reserved and the code is provided as-is, without warranty of any kind.
+Released under the [MIT License](LICENSE). You are free to use, modify, and distribute this software, including commercially, provided the copyright notice and license text are retained. The software is provided as-is, without warranty of any kind.
