@@ -11,8 +11,8 @@ rem ---------------------------------------------------------------------------
 
 cd /d "%~dp0"
 
-set "PROJECT=ClickerApp\ClickerApp.csproj"
-set "EXE=ClickerApp\bin\Release\net8.0-windows\ClickerApp.exe"
+set "PROJECT=ClickerBot\ClickerBot.csproj"
+set "EXE=ClickerBot\bin\Release\net8.0-windows\ClickerBot.exe"
 
 if exist "%EXE%" goto launch
 

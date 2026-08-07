@@ -65,11 +65,11 @@ git clone https://github.com/mrsoulcommunity/ClickerBot.git
 ### The manual way
 
 ```bash
-dotnet build ClickerApp/ClickerApp.csproj -c Release
+dotnet build ClickerBot/ClickerBot.csproj -c Release
 ```
 
 ```bash
-dotnet run --project ClickerApp/ClickerApp.csproj -c Release
+dotnet run --project ClickerBot/ClickerBot.csproj -c Release
 ```
 
 ---
@@ -130,10 +130,12 @@ Profiles hold every configurable value: the key, click coordinates, both delay s
 Everything is stored as indented JSON at:
 
 ```
-%APPDATA%\ClickerApp\profiles.json
+%APPDATA%\ClickerBot\profiles.json
 ```
 
 The file is written automatically shortly after any change and again on exit. If it is ever missing or corrupt, the app falls back to a single fresh **Default** profile rather than failing to start.
+
+The app was previously called ClickerApp. If nothing is found at the path above, profiles are read once from the old `%APPDATA%\ClickerApp\profiles.json` and saved forward to the new location, so an existing setup carries over on its own. The old folder is left in place and can be deleted whenever you like.
 
 ---
 
@@ -141,7 +143,7 @@ The file is written automatically shortly after any change and again on exit. If
 
 ```
 .
-├── ClickerApp/
+├── ClickerBot/
 │   ├── Automation/
 │   │   └── AutomationRunner.cs   # The async press → wait → click → wait loop
 │   ├── Input/
@@ -175,7 +177,7 @@ The file is written automatically shortly after any change and again on exit. If
 │   │   ├── MainForm.cs           # Main window, wiring, and run control
 │   │   └── UiFactory.cs          # Small control factory helpers
 │   ├── app.manifest              # DPI awareness, execution level, OS support
-│   ├── ClickerApp.csproj
+│   ├── ClickerBot.csproj
 │   └── Program.cs                # Entry point
 ├── .gitattributes                # Line-ending rules (CRLF for .bat)
 ├── .gitignore
@@ -207,15 +209,15 @@ Extended keys (arrows, `Insert`, `Delete`, `Home`, `End`, `Page Up`/`Page Down`,
 To produce a single self-contained executable that runs without the .NET runtime installed:
 
 ```bash
-dotnet publish ClickerApp/ClickerApp.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+dotnet publish ClickerBot/ClickerBot.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-The result lands in `ClickerApp/bin/Release/net8.0-windows/win-x64/publish/`.
+The result lands in `ClickerBot/bin/Release/net8.0-windows/win-x64/publish/`.
 
 For a much smaller build that requires the .NET 8 Desktop Runtime on the target machine:
 
 ```bash
-dotnet publish ClickerApp/ClickerApp.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+dotnet publish ClickerBot/ClickerBot.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 ```
 
 ---
@@ -226,7 +228,7 @@ dotnet publish ClickerApp/ClickerApp.csproj -c Release -r win-x64 --self-contain
 Windows grants a global hotkey to the first application that asks for it. Another running program owns that key — choose a different one in the *Repeat & Hotkeys* card.
 
 **"SendInput failed … Input may be blocked by an elevated window."**
-Windows blocks synthetic input from a normal-rights process to a process running as administrator. Either run the target application without elevation, or run Auto Key & Click as administrator. To make elevation permanent, change `asInvoker` to `requireAdministrator` in [`ClickerApp/app.manifest`](ClickerApp/app.manifest) and rebuild.
+Windows blocks synthetic input from a normal-rights process to a process running as administrator. Either run the target application without elevation, or run Auto Key & Click as administrator. To make elevation permanent, change `asInvoker` to `requireAdministrator` in [`ClickerBot/app.manifest`](ClickerBot/app.manifest) and rebuild.
 
 **The click lands in the wrong place.**
 Coordinates are absolute screen pixels across the whole virtual desktop. Re-capture the position with `F9` if you changed your display scaling, resolution, or monitor arrangement.
@@ -235,7 +237,7 @@ Coordinates are absolute screen pixels across the whole virtual desktop. Re-capt
 Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), then run the file again.
 
 **My settings disappeared.**
-Check that `%APPDATA%\ClickerApp\profiles.json` exists and is readable. A corrupt file is ignored on startup and replaced with a fresh default profile.
+Check that `%APPDATA%\ClickerBot\profiles.json` exists and is readable. A corrupt file is ignored on startup and replaced with a fresh default profile.
 
 ---
 
