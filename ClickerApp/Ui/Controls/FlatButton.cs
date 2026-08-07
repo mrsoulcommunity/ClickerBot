@@ -14,8 +14,8 @@ internal enum ButtonKind
     Danger,
 }
 
-/// <summary>Flat, rounded, hover-aware button drawn from the <see cref="Theme"/> palette.</summary>
-internal sealed class FlatButton : Button
+/// <summary>Flat, rounded, hover-aware button drawn from the active <see cref="Theme"/>.</summary>
+internal sealed class FlatButton : Button, IThemedControl
 {
     private bool _hovered;
     private bool _pressed;
@@ -31,9 +31,26 @@ internal sealed class FlatButton : Button
         UseVisualStyleBackColor = false;
     }
 
-    public ButtonKind Kind { get; set; } = ButtonKind.Secondary;
+    private ButtonKind _kind = ButtonKind.Secondary;
+
+    public ButtonKind Kind
+    {
+        get => _kind;
+        set
+        {
+            if (_kind == value)
+            {
+                return;
+            }
+
+            _kind = value;
+            Invalidate();
+        }
+    }
 
     public int CornerRadius { get; set; } = 8;
+
+    public void ApplyTheme() => Invalidate();
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -68,7 +85,7 @@ internal sealed class FlatButton : Button
     {
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.Clear(Parent?.BackColor ?? Theme.Surface);
+        g.Clear(Theme.BackdropOf(this));
 
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
         using var path = Theme.RoundedRect(bounds, CornerRadius);
@@ -85,6 +102,13 @@ internal sealed class FlatButton : Button
             g.DrawPath(pen, path);
         }
 
+        if (Focused && Enabled)
+        {
+            using var ring = Theme.RoundedRect(Rectangle.Inflate(bounds, -3, -3), Math.Max(2, CornerRadius - 3));
+            using var pen = new Pen(Color.FromArgb(120, fore));
+            g.DrawPath(pen, ring);
+        }
+
         TextRenderer.DrawText(g, Text, Font, bounds, fore,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
@@ -94,23 +118,23 @@ internal sealed class FlatButton : Button
     {
         if (!Enabled)
         {
-            return (Theme.Field, Theme.Disabled, Theme.Border);
+            return (Theme.DisabledSurface, Theme.Disabled, Theme.Border);
         }
 
-        return Kind switch
+        return _kind switch
         {
             ButtonKind.Primary => (
-                _pressed ? Theme.AccentHover : _hovered ? Theme.AccentHover : Theme.Accent,
-                Color.White,
+                _pressed || _hovered ? Theme.AccentHover : Theme.Accent,
+                Theme.OnAccent,
                 Color.Empty),
             ButtonKind.Danger => (
-                _hovered ? Color.FromArgb(253, 242, 242) : Theme.Surface,
+                _hovered ? Theme.DangerSoft : Theme.Surface,
                 Theme.Danger,
                 _hovered ? Theme.Danger : Theme.Border),
             _ => (
                 _hovered ? Theme.AccentSoft : Theme.Surface,
                 _hovered ? Theme.Accent : Theme.TextPrimary,
-                _hovered ? Theme.Accent : Theme.Border),
+                _hovered ? Theme.Accent : Theme.BorderStrong),
         };
     }
 }

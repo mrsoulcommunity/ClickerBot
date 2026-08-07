@@ -3,16 +3,23 @@ using System.Drawing.Drawing2D;
 namespace ClickerApp;
 
 /// <summary>Owner-drawn profile list: flat rows, soft accent pill on the selected one.</summary>
-internal sealed class ProfileListBox : ListBox
+internal sealed class ProfileListBox : ListBox, IThemedControl
 {
     public ProfileListBox()
     {
         DrawMode = DrawMode.OwnerDrawFixed;
         BorderStyle = BorderStyle.None;
-        BackColor = Theme.Surface;
         Font = Theme.Base;
         ItemHeight = 34;
         IntegralHeight = false;
+        ApplyTheme();
+    }
+
+    public void ApplyTheme()
+    {
+        BackColor = Theme.Surface;
+        ForeColor = Theme.TextPrimary;
+        Invalidate();
     }
 
     protected override void OnDrawItem(DrawItemEventArgs e)
@@ -20,7 +27,7 @@ internal sealed class ProfileListBox : ListBox
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        using (var background = new SolidBrush(BackColor))
+        using (var background = new SolidBrush(Theme.Surface))
         {
             g.FillRectangle(background, e.Bounds);
         }

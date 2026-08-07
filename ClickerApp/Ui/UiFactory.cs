@@ -1,58 +1,46 @@
 namespace ClickerApp;
 
-/// <summary>Small factory helpers so every plain control is styled the same way.</summary>
+/// <summary>
+/// Factory helpers so every plain control is built the same way — and, importantly, so
+/// every one of them is a themed variant that survives a palette switch.
+/// </summary>
 internal static class UiFactory
 {
-    public static Label Label(string text, int x, int y, int width, Font? font = null, Color? color = null)
+    public static ThemedLabel Label(string text, int x, int y, int width, Font? font = null, TextRole role = TextRole.Primary)
     {
-        var label = new Label
+        var label = new ThemedLabel
         {
             Text = text,
             Font = font ?? Theme.Base,
-            ForeColor = color ?? Theme.TextPrimary,
-            AutoSize = false,
-            TextAlign = ContentAlignment.MiddleLeft,
-            BackColor = Color.Transparent,
-            UseMnemonic = false,
+            Role = role,
         };
         label.SetBounds(x, y, width, 20);
         return label;
     }
 
-    public static Label Hint(string text, int x, int y, int width) =>
-        Label(text, x, y, width, Theme.Small, Theme.TextSecondary);
+    public static ThemedLabel Hint(string text, int x, int y, int width) =>
+        Label(text, x, y, width, Theme.Small, TextRole.Secondary);
 
-    public static NumericUpDown Numeric(int x, int y, int width, int min, int max, int value)
+    public static ThemedLabel Caption(string text, int x, int y, int width) =>
+        Label(text, x, y, width, Theme.Caption, TextRole.Secondary);
+
+    public static NumberBox Numeric(int x, int y, int width, int min, int max, int value)
     {
-        var numeric = new NumericUpDown
+        var numeric = new NumberBox
         {
             Minimum = min,
             Maximum = max,
             Value = Math.Clamp(value, min, max),
-            Font = Theme.Base,
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = Theme.Surface,
-            ForeColor = Theme.TextPrimary,
-            TextAlign = HorizontalAlignment.Center,
         };
-        numeric.SetBounds(x, y, width, 24);
+        // 32px tall so numeric fields line up with the key-capture fields beside them.
+        numeric.SetBounds(x, y, width, 32);
         return numeric;
     }
 
-    public static CheckBox Check(string text, int x, int y, int width)
+    public static ThemedCheckBox Check(string text, int x, int y, int width)
     {
-        var check = new CheckBox
-        {
-            Text = text,
-            Font = Theme.Base,
-            ForeColor = Theme.TextPrimary,
-            BackColor = Color.Transparent,
-            FlatStyle = FlatStyle.Flat,
-            AutoSize = false,
-            Cursor = Cursors.Hand,
-        };
-        check.FlatAppearance.BorderSize = 0;
-        check.SetBounds(x, y, width, 22);
+        var check = new ThemedCheckBox { Text = text };
+        check.SetBounds(x, y, width, 24);
         return check;
     }
 }

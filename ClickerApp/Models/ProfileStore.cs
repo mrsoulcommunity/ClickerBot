@@ -18,6 +18,13 @@ internal sealed class ProfileStore
 
     public int SelectedIndex { get; set; }
 
+    /// <summary>
+    /// The chosen appearance. Application-wide rather than per-profile: switching profiles
+    /// should never repaint the window. Named "Appearance" so it does not shadow
+    /// <see cref="Theme"/> inside this class.
+    /// </summary>
+    public ThemeMode Appearance { get; set; } = ThemeMode.Light;
+
     [JsonIgnore]
     public static string FilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -70,9 +77,11 @@ internal sealed class ProfileStore
         }
     }
 
+    /// <summary>A first run starts on whatever appearance Windows itself is set to.</summary>
     private static ProfileStore CreateDefault() => new()
     {
         Profiles = { new Profile { Name = "Default" } },
         SelectedIndex = 0,
+        Appearance = WindowChrome.SystemPreference(),
     };
 }

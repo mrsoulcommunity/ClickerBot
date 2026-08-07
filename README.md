@@ -10,6 +10,7 @@ A lightweight Windows desktop automation tool that repeats a **key press → mou
 - [Requirements](#requirements)
 - [Getting started](#getting-started)
 - [Usage](#usage)
+- [Appearance](#appearance)
 - [Hotkeys](#hotkeys)
 - [Profiles and data storage](#profiles-and-data-storage)
 - [Project structure](#project-structure)
@@ -34,6 +35,7 @@ A lightweight Windows desktop automation tool that repeats a **key press → mou
 | **Profiles** | Create, rename, duplicate, and delete named configurations. Every setting is part of the profile. |
 | **Auto-save** | Changes are persisted to disk automatically a moment after you make them — nothing to remember to save. |
 | **Live status** | The footer shows the current iteration, completion, errors, and hotkey conflicts. |
+| **Light & dark themes** | One click on the header switch, with an animated transition. The title bar follows too. See [Appearance](#appearance). |
 | **High-DPI aware** | Per-monitor V2 DPI awareness, so the UI stays sharp on scaled and mixed-DPI displays. |
 
 ---
@@ -84,8 +86,26 @@ dotnet run --project ClickerApp/ClickerApp.csproj -c Release
 5. **Press Start** — or your start hotkey. The settings panel locks while a run is in progress.
 6. **Press Stop** — or your stop hotkey — to cancel at any time.
 
+The switch in the top-right corner flips between light and dark at any time; see [Appearance](#appearance).
+
 > **Note**
 > The automated key cannot be the same as your **Stop** hotkey. Synthesized key presses trigger registered hotkeys too, so the run would immediately stop itself. The app blocks this combination and tells you why.
+
+---
+
+## Appearance
+
+The switch in the top-right corner of the header toggles between the light and dark themes. The change is immediate and animated, and it covers the whole window — including the title bar, which is repainted through the Desktop Window Manager rather than left as a light strip above a dark app.
+
+- **First run** starts on whatever appearance Windows itself is set to, read from `AppsUseLightTheme`.
+- **Your choice is remembered** in the same file as your profiles, as an application-wide setting. Switching profiles never changes the theme.
+- **Nothing else changes.** Themes are purely visual; every automation setting is untouched.
+
+### How theming is built
+
+`Theme` exposes the active `Palette` and raises `Changed` when it is swapped. Controls read colors inside `OnPaint` rather than caching them at construction, so a switch is mostly just a repaint. Stock WinForms controls do cache their colors, so those are wrapped in themed variants that implement `IThemedControl`, and `ThemeManager` walks the control tree calling `ApplyTheme()` on each one — with painting suspended so the change lands in a single frame.
+
+Three controls are drawn from scratch instead of using the framework versions, because Windows paints those itself and they stay light no matter what colors are assigned: the checkbox glyph, the numeric field's spin buttons, and the confirmation dialog. Adding a third appearance would mean adding one `Palette` instance and changing nothing else.
 
 ---
 
@@ -105,7 +125,7 @@ Start and Stop must be different keys.
 
 ## Profiles and data storage
 
-Profiles hold every configurable value: the key, click coordinates, both delay settings, the repetition mode, and the start/stop hotkeys. Switching profiles re-registers that profile's hotkeys immediately.
+Profiles hold every configurable value: the key, click coordinates, both delay settings, the repetition mode, and the start/stop hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme is stored alongside them but applies to the whole application rather than to a single profile.
 
 Everything is stored as indented JSON at:
 
@@ -133,13 +153,26 @@ The file is written automatically shortly after any change and again on exit. If
 │   │   ├── Profile.cs            # One named configuration
 │   │   └── ProfileStore.cs       # JSON load/save of the profile collection
 │   ├── Ui/
-│   │   ├── Card.cs               # Titled section container
-│   │   ├── DelayEditor.cs        # Fixed/random delay control
-│   │   ├── FlatButton.cs         # Owner-drawn button (primary/secondary/danger)
-│   │   ├── KeyCaptureBox.cs      # Field that records the next key pressed
+│   │   ├── Controls/
+│   │   │   ├── Card.cs             # Titled section container
+│   │   │   ├── ConfirmDialog.cs    # Themed replacement for MessageBox
+│   │   │   ├── DelayEditor.cs      # Fixed/random delay control
+│   │   │   ├── FlatButton.cs       # Owner-drawn button (primary/secondary/danger)
+│   │   │   ├── KeyCaptureBox.cs    # Field that records the next key pressed
+│   │   │   ├── NumberBox.cs        # Owner-drawn numeric field with steppers
+│   │   │   ├── ProfileListBox.cs   # Owner-drawn profile list
+│   │   │   ├── SurfacePanel.cs     # Panel that tracks the surface color
+│   │   │   ├── ThemeToggle.cs      # Animated light/dark switch
+│   │   │   ├── ThemedCheckBox.cs   # Owner-drawn checkbox
+│   │   │   ├── ThemedLabel.cs      # Label that stores a role, not a color
+│   │   │   └── ThemedTextBox.cs    # Palette-aware text box
+│   │   ├── Theming/
+│   │   │   ├── Palette.cs          # One complete set of colors
+│   │   │   ├── Theme.cs            # Active palette, fonts, drawing helpers
+│   │   │   ├── ThemeManager.cs     # Pushes the theme through the control tree
+│   │   │   ├── ThemeMode.cs        # Light / Dark
+│   │   │   └── WindowChrome.cs     # Dark title bar + system preference
 │   │   ├── MainForm.cs           # Main window, wiring, and run control
-│   │   ├── ProfileListBox.cs     # Owner-drawn profile list
-│   │   ├── Theme.cs              # Colors and fonts
 │   │   └── UiFactory.cs          # Small control factory helpers
 │   ├── app.manifest              # DPI awareness, execution level, OS support
 │   ├── ClickerApp.csproj

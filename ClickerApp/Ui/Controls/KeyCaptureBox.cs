@@ -6,10 +6,12 @@ namespace ClickerApp;
 /// A field that records whichever key the user presses while it has focus.
 /// Works for every key including Tab, Enter and Space; Esc clears the assignment.
 /// </summary>
-internal sealed class KeyCaptureBox : Control
+internal sealed class KeyCaptureBox : Control, IThemedControl
 {
     private Keys _key = Keys.None;
     private bool _hovered;
+
+    public void ApplyTheme() => Invalidate();
 
     public KeyCaptureBox()
     {
@@ -96,15 +98,21 @@ internal sealed class KeyCaptureBox : Control
     {
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.Clear(Parent?.BackColor ?? Theme.Surface);
+        g.Clear(Theme.BackdropOf(this));
 
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
         using var path = Theme.RoundedRect(bounds, 8);
 
-        Color back = Focused ? Theme.AccentSoft : _hovered ? Theme.Field : Theme.Field;
-        Color border = Focused ? Theme.Accent : Theme.Border;
+        Color back = !Enabled ? Theme.DisabledSurface
+            : Focused ? Theme.AccentSoft
+            : _hovered ? Theme.FieldHover
+            : Theme.Field;
+        Color border = !Enabled ? Theme.Border
+            : Focused ? Theme.Accent
+            : _hovered ? Theme.Accent
+            : Theme.BorderStrong;
 
-        using (var fill = new SolidBrush(Enabled ? back : Theme.Field))
+        using (var fill = new SolidBrush(back))
         {
             g.FillPath(fill, path);
         }
