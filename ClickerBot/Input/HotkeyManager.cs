@@ -32,6 +32,10 @@ internal sealed class HotkeyManager : NativeWindow, IDisposable
     {
         Release(name);
 
+        // Only the key code is a virtual-key; any modifier bits riding along would be
+        // registered as a nonsense hotkey that can never fire.
+        key &= Keys.KeyCode;
+
         if (key == Keys.None)
         {
             return true;

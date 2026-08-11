@@ -13,7 +13,7 @@ internal sealed record AutomationSettings(
         profile.ClickPoint,
         profile.KeyDelay.Clone(),
         profile.ClickDelay.Clone(),
-        profile.InfiniteLoop ? null : profile.Repetitions);
+        profile.InfiniteLoop ? null : Math.Max(1, profile.Repetitions));
 }
 
 /// <summary>
@@ -34,7 +34,9 @@ internal static class AutomationRunner
     {
         var random = Random.Shared;
 
-        for (int iteration = 1; settings.Repetitions is null || iteration <= settings.Repetitions; iteration++)
+        // long, not int: an infinite run counts for as long as it is left on, and an
+        // overflow here would wrap the counter negative rather than just keep going.
+        for (long iteration = 1; settings.Repetitions is null || iteration <= settings.Repetitions; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             NativeInput.PressKey(settings.Key);
@@ -44,7 +46,14 @@ internal static class AutomationRunner
             cancellationToken.ThrowIfCancellationRequested();
             NativeInput.LeftClick(settings.ClickPoint);
 
-            progress.Report(iteration);
+            progress.Report((int)Math.Min(iteration, int.MaxValue));
+
+            // Nothing follows the final click, so end here instead of sitting out one more
+            // delay — which can be minutes — before the run reports itself finished.
+            if (settings.Repetitions is { } total && iteration >= total)
+            {
+                break;
+            }
 
             // Pace the gap before the next iteration's key press.
             await Task.Delay(settings.ClickDelay.Next(random), cancellationToken).ConfigureAwait(true);

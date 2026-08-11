@@ -35,5 +35,21 @@ internal sealed class DelaySetting
         Max = Max,
     };
 
+    /// <summary>
+    /// Pulls every value back inside <see cref="Limits"/> and puts the range the right way
+    /// round. Used when reading the profile file, which nothing stops a person editing by hand.
+    /// </summary>
+    public void Normalize()
+    {
+        Fixed = Math.Clamp(Fixed, Limits.MinDelayMs, Limits.MaxDelayMs);
+        Min = Math.Clamp(Min, Limits.MinDelayMs, Limits.MaxDelayMs);
+        Max = Math.Clamp(Max, Limits.MinDelayMs, Limits.MaxDelayMs);
+
+        if (Min > Max)
+        {
+            (Min, Max) = (Max, Min);
+        }
+    }
+
     public string Describe() => UseRandom ? $"{Math.Min(Min, Max)}–{Math.Max(Min, Max)} ms" : $"{Fixed} ms";
 }

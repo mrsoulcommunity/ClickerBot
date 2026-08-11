@@ -9,6 +9,9 @@
     <AssemblyName>ClickerBot</AssemblyName>
     <RootNamespace>ClickerBot</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Matches the manifest. Left unset, ApplicationConfiguration.Initialize() asks for
+         SystemAware, which contradicts the PerMonitorV2 the manifest already applied. -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
 </Project>

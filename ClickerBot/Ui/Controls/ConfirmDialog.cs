@@ -24,6 +24,11 @@ internal sealed class ConfirmDialog : Form
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false;
+
+        // Same design DPI as the main window, so this scales with it instead of staying a
+        // fixed block of pixels while its text grows. See MainForm.BuildUi.
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         ClientSize = new Size(392, 168);
 
         // The canvas color, not Surface: the buttons are Surface-filled and would otherwise
@@ -81,8 +86,10 @@ internal sealed class ConfirmDialog : Form
             g.DrawRectangle(pen, frame);
         }
 
+        // A profile name can be any length, and the body is a fixed two lines: ellipsize
+        // rather than let the overflow run under the buttons.
         var body = new Rectangle(28, 62, ClientSize.Width - 56, 40);
         TextRenderer.DrawText(g, _message, Theme.Base, body, Theme.TextSecondary,
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }
 }

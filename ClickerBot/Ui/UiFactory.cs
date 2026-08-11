@@ -26,12 +26,10 @@ internal static class UiFactory
 
     public static NumberBox Numeric(int x, int y, int width, int min, int max, int value)
     {
-        var numeric = new NumberBox
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = Math.Clamp(value, min, max),
-        };
+        var numeric = new NumberBox();
+        numeric.SetRange(min, max);
+        numeric.Value = value;
+
         // 32px tall so numeric fields line up with the key-capture fields beside them.
         numeric.SetBounds(x, y, width, 32);
         return numeric;

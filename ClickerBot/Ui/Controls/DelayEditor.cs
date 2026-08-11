@@ -6,8 +6,8 @@ namespace ClickerBot;
 /// </summary>
 internal sealed class DelayEditor : Panel, IThemedControl
 {
-    private const int MinDelay = 1;
-    private const int MaxDelay = 600000;
+    private const int MinDelay = Limits.MinDelayMs;
+    private const int MaxDelay = Limits.MaxDelayMs;
 
     private readonly ThemedCheckBox _random = UiFactory.Check("Random", 0, 4, 82);
     private readonly NumberBox _fixed = UiFactory.Numeric(92, 0, 104, MinDelay, MaxDelay, 100);
@@ -66,6 +66,14 @@ internal sealed class DelayEditor : Panel, IThemedControl
             ApplyMode();
             _loading = false;
         }
+    }
+
+    /// <summary>Applies text still being typed in any of the fields. See <see cref="NumberBox.Commit"/>.</summary>
+    public void Commit()
+    {
+        _fixed.Commit();
+        _min.Commit();
+        _max.Commit();
     }
 
     // The panel is transparent; children restyle themselves through the tree walk.

@@ -44,9 +44,8 @@ internal sealed class ProfileStore
             if (File.Exists(path))
             {
                 var store = JsonSerializer.Deserialize<ProfileStore>(File.ReadAllText(path), SerializerOptions);
-                if (store is { Profiles.Count: > 0 })
+                if (store is not null && store.Sanitize())
                 {
-                    store.SelectedIndex = Math.Clamp(store.SelectedIndex, 0, store.Profiles.Count - 1);
                     return store;
                 }
             }
@@ -59,6 +58,36 @@ internal sealed class ProfileStore
         return null;
     }
 
+    /// <summary>
+    /// Makes a just-deserialized store safe to hand to the UI. JSON can legally contain a
+    /// null entry, or values no input would ever produce, and every screen downstream
+    /// assumes neither.
+    /// </summary>
+    /// <returns>False when nothing usable was left, which reads as "no file here".</returns>
+    private bool Sanitize()
+    {
+        // "Profiles": null deserializes to a null list, past the property initializer.
+        if (Profiles is null)
+        {
+            return false;
+        }
+
+        Profiles.RemoveAll(profile => profile is null);
+        if (Profiles.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var profile in Profiles)
+        {
+            profile.Normalize();
+        }
+
+        SelectedIndex = Math.Clamp(SelectedIndex, 0, Profiles.Count - 1);
+        Appearance = Appearance == ThemeMode.Dark ? ThemeMode.Dark : ThemeMode.Light;
+        return true;
+    }
+
     private static string PathUnder(string folder) => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         folder,
@@ -67,7 +96,21 @@ internal sealed class ProfileStore
     public void Save()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(this, SerializerOptions));
+
+        // Written beside the real file and swapped in, because saves happen constantly while
+        // typing: a write interrupted half way through would otherwise leave a truncated file
+        // where every profile used to be, and that file is the only copy.
+        string temporary = FilePath + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(this, SerializerOptions));
+
+        if (File.Exists(FilePath))
+        {
+            File.Replace(temporary, FilePath, destinationBackupFileName: null);
+        }
+        else
+        {
+            File.Move(temporary, FilePath);
+        }
     }
 
     /// <summary>Returns a name that is not yet used, e.g. "Profile 2".</summary>

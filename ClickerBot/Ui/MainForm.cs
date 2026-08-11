@@ -19,12 +19,13 @@ internal sealed class MainForm : Form
 
     // Settings
     private readonly KeyCaptureBox _keyBox = new();
-    private readonly NumberBox _xInput = UiFactory.Numeric(0, 0, 96, -32000, 32000, 0);
-    private readonly NumberBox _yInput = UiFactory.Numeric(0, 0, 96, -32000, 32000, 0);
+    private readonly NumberBox _xInput = UiFactory.Numeric(0, 0, 96, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
+    private readonly NumberBox _yInput = UiFactory.Numeric(0, 0, 96, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
     private readonly FlatButton _captureButton = new();
     private readonly DelayEditor _keyDelay = new();
     private readonly DelayEditor _clickDelay = new();
-    private readonly NumberBox _repetitions = UiFactory.Numeric(0, 0, 108, 1, 1000000, 10);
+    private readonly NumberBox _repetitions =
+        UiFactory.Numeric(0, 0, 108, Limits.MinRepetitions, Limits.MaxRepetitions, 10);
     private readonly ThemedCheckBox _infinite = UiFactory.Check("Infinite", 0, 0, 92);
     private readonly KeyCaptureBox _startHotkeyBox = new();
     private readonly KeyCaptureBox _stopHotkeyBox = new();
@@ -41,6 +42,7 @@ internal sealed class MainForm : Form
     private Profile _current = new();
     private HotkeyManager? _hotkeys;
     private CancellationTokenSource? _cancellation;
+    private Task? _run;
     private bool _loading;
     private bool _suspendSelection;
 
@@ -73,10 +75,43 @@ internal sealed class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        StopAutomation();
+        base.OnFormClosing(e);
+
+        if (e.Cancel)
+        {
+            return;
+        }
+
+        // A run resumes on the UI thread after each of its delays. Closing out from under it
+        // leaves that continuation to land on disposed controls, so the close is held back
+        // for the moment it takes cancellation to unwind, then repeated.
+        if (_run is { IsCompleted: false })
+        {
+            e.Cancel = true;
+            StopAutomation();
+            _run.ContinueWith(_ => Close(), TaskScheduler.FromCurrentSynchronizationContext());
+            return;
+        }
+
         SaveNow();
         _hotkeys?.Dispose();
-        base.OnFormClosing(e);
+        _hotkeys = null;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // None of these are in the form's component container, so nothing else releases
+            // them: the timer keeps a callback alive and the hotkeys stay owned by this app.
+            _saveTimer.Dispose();
+            _hotkeys?.Dispose();
+            _hotkeys = null;
+            _cancellation?.Dispose();
+            _cancellation = null;
+        }
+
+        base.Dispose(disposing);
     }
 
     // --- UI -------------------------------------------------------------
@@ -87,7 +122,13 @@ internal sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
+
+        // Every bound in this file is a pixel at 100% scaling, and the fonts are in points, so
+        // on a scaled display the text grows and the boxes around it do not. Naming the design
+        // DPI is what turns that ratio into the scale factor — without it the auto-scale
+        // factor is a flat 1 and the mode above does nothing at all.
         AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         ClientSize = new Size(900, 664);
         BackColor = Theme.Background;
         Font = Theme.Base;
@@ -258,6 +299,13 @@ internal sealed class MainForm : Form
 
     private void ReloadProfileList(int selectIndex)
     {
+        // Everything below indexes into the list, and the clamp itself throws when there is
+        // nothing to clamp to. The app is never without a profile, so restore that first.
+        if (_store.Profiles.Count == 0)
+        {
+            _store.Profiles.Add(new Profile { Name = "Default" });
+        }
+
         _suspendSelection = true;
         _profileList.BeginUpdate();
         _profileList.Items.Clear();
@@ -336,6 +384,15 @@ internal sealed class MainForm : Form
             return;
         }
 
+        // Resolved before the prompt: RemoveAt(-1) throws, and there is no sense asking the
+        // user to confirm a deletion that cannot happen.
+        int index = _store.Profiles.IndexOf(_current);
+        if (index < 0)
+        {
+            ReloadProfileList(_store.SelectedIndex);
+            return;
+        }
+
         bool confirmed = ConfirmDialog.Ask(this, "Delete profile",
             $"\"{_current.Name}\" will be removed. This cannot be undone.", "Delete", destructive: true);
         if (!confirmed)
@@ -344,7 +401,6 @@ internal sealed class MainForm : Form
         }
 
         string name = _current.Name;
-        int index = _store.Profiles.IndexOf(_current);
         _store.Profiles.RemoveAt(index);
         ReloadProfileList(Math.Max(0, index - 1));
         SetStatus($"Deleted \"{name}\".");
@@ -516,12 +572,17 @@ internal sealed class MainForm : Form
         SetStatus($"Click position saved: {position.X}, {position.Y}");
     }
 
-    private async void StartAutomation()
+    private void StartAutomation()
     {
         if (IsRunning)
         {
             return;
         }
+
+        // A field the user is still typing in has not raised its change event yet, so the
+        // profile would be run with the previous value. Reaching Start by hotkey never takes
+        // focus off that field, which is exactly when this matters.
+        CommitPendingEdits();
 
         if (_current.Key == Keys.None)
         {
@@ -529,10 +590,10 @@ internal sealed class MainForm : Form
             return;
         }
 
-        // A synthesized key still triggers registered hotkeys, so this pair would stop itself.
-        if (_current.Key == _current.StopHotkey)
+        if (ConflictingHotkey(_current.Key) is string conflict)
         {
-            SetStatus($"{KeyNames.Describe(_current.Key)} is also the Stop hotkey — choose another key.", TextRole.Danger);
+            SetStatus($"{KeyNames.Describe(_current.Key)} is also the {conflict} — choose another key.",
+                TextRole.Danger);
             return;
         }
 
@@ -541,6 +602,24 @@ internal sealed class MainForm : Form
         SaveNow();
         UpdateControlStates();
 
+        _run = RunAsync(settings, _cancellation.Token);
+    }
+
+    /// <summary>
+    /// Names the hotkey <paramref name="key"/> collides with, or null when it is free.
+    ///
+    /// A synthesized key press reaches registered hotkeys just like a real one, so a key that
+    /// doubles as one turns every iteration into a Stop, a Start, or — with F9 — a silent
+    /// rewrite of the click target the run is aiming at.
+    /// </summary>
+    private string? ConflictingHotkey(Keys key) =>
+        key == _current.StopHotkey ? "Stop hotkey"
+        : key == _current.StartHotkey ? "Start hotkey"
+        : key == CaptureHotkey ? "capture-position hotkey (F9)"
+        : null;
+
+    private async Task RunAsync(AutomationSettings settings, CancellationToken cancellationToken)
+    {
         string total = settings.Repetitions?.ToString() ?? "∞";
         var progress = new Progress<int>(iteration =>
             SetStatus($"Running \"{_current.Name}\" — iteration {iteration} of {total}", TextRole.Success));
@@ -549,7 +628,7 @@ internal sealed class MainForm : Form
 
         try
         {
-            await AutomationRunner.RunAsync(settings, progress, _cancellation.Token);
+            await AutomationRunner.RunAsync(settings, progress, cancellationToken);
             SetStatus("Finished.");
         }
         catch (OperationCanceledException)
@@ -562,13 +641,22 @@ internal sealed class MainForm : Form
         }
         finally
         {
-            _cancellation.Dispose();
+            _cancellation?.Dispose();
             _cancellation = null;
             UpdateControlStates();
         }
     }
 
     private void StopAutomation() => _cancellation?.Cancel();
+
+    private void CommitPendingEdits()
+    {
+        _xInput.Commit();
+        _yInput.Commit();
+        _repetitions.Commit();
+        _keyDelay.Commit();
+        _clickDelay.Commit();
+    }
 
     // --- State -----------------------------------------------------------
 

@@ -53,24 +53,20 @@ internal sealed class NumberBox : Control, IThemedControl
 
     public event EventHandler? ValueChanged;
 
-    public int Minimum
-    {
-        get => _minimum;
-        set
-        {
-            _minimum = value;
-            Value = _value;
-        }
-    }
+    public int Minimum => _minimum;
 
-    public int Maximum
+    public int Maximum => _maximum;
+
+    /// <summary>
+    /// Sets both ends of the range at once. Deliberately not two separate setters: assigning
+    /// them one after another leaves a moment where the minimum is above the maximum, and the
+    /// clamp below throws on exactly that.
+    /// </summary>
+    public void SetRange(int minimum, int maximum)
     {
-        get => _maximum;
-        set
-        {
-            _maximum = value;
-            Value = _value;
-        }
+        _minimum = Math.Min(minimum, maximum);
+        _maximum = Math.Max(minimum, maximum);
+        Value = _value;
     }
 
     public int Value
@@ -90,6 +86,13 @@ internal sealed class NumberBox : Control, IThemedControl
             ValueChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    /// <summary>
+    /// Applies whatever is typed in the field right now, exactly as leaving it would.
+    /// Half-typed text is only reconciled on focus loss, so anything that acts on the value
+    /// without the field losing focus first — a global hotkey, say — has to ask for it.
+    /// </summary>
+    public void Commit() => Normalize();
 
     public void ApplyTheme()
     {

@@ -16,6 +16,13 @@ internal sealed class ThemedTextBox : TextBox, IThemedControl
     public void ApplyTheme()
     {
         BackColor = OnSurface ? Theme.Surface : Theme.Background;
-        ForeColor = Theme.TextPrimary;
+        ForeColor = Enabled ? Theme.TextPrimary : Theme.Disabled;
+    }
+
+    // Being locked during a run has to look locked, and the palette owns what that looks like.
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        ApplyTheme();
+        base.OnEnabledChanged(e);
     }
 }

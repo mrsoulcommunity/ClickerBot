@@ -46,5 +46,28 @@ internal sealed class Profile
         StopHotkey = StopHotkey,
     };
 
+    /// <summary>
+    /// Pulls every value back inside <see cref="Limits"/>, and replaces anything a JSON file
+    /// left null. Without this a hand-edited (or half-written) profile can reach the UI in a
+    /// state it cannot display — a repetition count of 0 would "run" and finish instantly,
+    /// and a missing delay would be a null reference the moment the editor is filled in.
+    /// </summary>
+    public void Normalize()
+    {
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            Name = "Untitled";
+        }
+
+        ClickX = Math.Clamp(ClickX, Limits.MinCoordinate, Limits.MaxCoordinate);
+        ClickY = Math.Clamp(ClickY, Limits.MinCoordinate, Limits.MaxCoordinate);
+        Repetitions = Math.Clamp(Repetitions, Limits.MinRepetitions, Limits.MaxRepetitions);
+
+        KeyDelay ??= new DelaySetting();
+        ClickDelay ??= new DelaySetting();
+        KeyDelay.Normalize();
+        ClickDelay.Normalize();
+    }
+
     public override string ToString() => Name;
 }

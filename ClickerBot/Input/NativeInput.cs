@@ -9,6 +9,14 @@ internal static class NativeInput
 {
     public static void PressKey(Keys key)
     {
+        // A stored key can carry modifier bits alongside the key code; only the low byte is
+        // a virtual-key, and sending the raw value would synthesize a different key entirely.
+        key &= Keys.KeyCode;
+        if (key == Keys.None)
+        {
+            return;
+        }
+
         ushort virtualKey = (ushort)key;
         ushort scanCode = (ushort)MapVirtualKey(virtualKey, MAPVK_VK_TO_VSC);
         uint extended = IsExtendedKey(key) ? KEYEVENTF_EXTENDEDKEY : 0;
@@ -24,7 +32,15 @@ internal static class NativeInput
 
     public static void LeftClick(Point screenPoint)
     {
-        SetCursorPos(screenPoint.X, screenPoint.Y);
+        // Checked rather than assumed: clicking after a failed move would fire the click
+        // wherever the cursor happens to be sitting, which is the one thing worse than not
+        // clicking at all.
+        if (!SetCursorPos(screenPoint.X, screenPoint.Y))
+        {
+            throw new InvalidOperationException(
+                $"Could not move the cursor to {screenPoint.X}, {screenPoint.Y} " +
+                $"(error {Marshal.GetLastWin32Error()}).");
+        }
 
         var inputs = new[]
         {

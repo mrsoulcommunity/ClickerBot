@@ -89,7 +89,7 @@ dotnet run --project ClickerBot/ClickerBot.csproj -c Release
 The switch in the top-right corner flips between light and dark at any time; see [Appearance](#appearance).
 
 > **Note**
-> The automated key cannot be the same as your **Stop** hotkey. Synthesized key presses trigger registered hotkeys too, so the run would immediately stop itself. The app blocks this combination and tells you why.
+> The automated key cannot be one of the hotkeys — **Start**, **Stop**, or `F9`. Synthesized key presses trigger registered hotkeys just like real ones, so the run would stop itself, restart itself, or quietly move the click target out from under itself. The app blocks these combinations and tells you which one you hit.
 
 ---
 
@@ -133,7 +133,7 @@ Everything is stored as indented JSON at:
 %APPDATA%\ClickerBot\profiles.json
 ```
 
-The file is written automatically shortly after any change and again on exit. If it is ever missing or corrupt, the app falls back to a single fresh **Default** profile rather than failing to start.
+The file is written automatically shortly after any change and again on exit. Each save is written alongside the real file and swapped in, so an interrupted write cannot leave a truncated file where your profiles were. If the file is ever missing or corrupt, the app falls back to a single fresh **Default** profile rather than failing to start; values outside the ranges the inputs allow are pulled back into range on load, so hand-editing it cannot put the app into a state it will not run.
 
 The app was previously called ClickerApp. If nothing is found at the path above, profiles are read once from the old `%APPDATA%\ClickerApp\profiles.json` and saved forward to the new location, so an existing setup carries over on its own. The old folder is left in place and can be deleted whenever you like.
 
@@ -152,6 +152,7 @@ The app was previously called ClickerApp. If nothing is found at the path above,
 │   │   └── NativeInput.cs        # SendInput wrapper for synthetic key/mouse input
 │   ├── Models/
 │   │   ├── DelaySetting.cs       # Fixed or random-range delay
+│   │   ├── Limits.cs             # The valid range of every numeric setting
 │   │   ├── Profile.cs            # One named configuration
 │   │   └── ProfileStore.cs       # JSON load/save of the profile collection
 │   ├── Ui/
