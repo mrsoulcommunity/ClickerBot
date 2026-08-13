@@ -30,25 +30,31 @@ internal static class NativeInput
         Send(inputs);
     }
 
-    public static void LeftClick(Point screenPoint)
+    /// <summary>
+    /// Clicks <paramref name="button"/>, moving the cursor to <paramref name="screenPoint"/>
+    /// first when one is given. A null point clicks wherever the cursor already is, which
+    /// leaves the user free to aim the run by hand.
+    /// </summary>
+    public static void Click(ClickButton button, Point? screenPoint)
     {
         // Checked rather than assumed: clicking after a failed move would fire the click
         // wherever the cursor happens to be sitting, which is the one thing worse than not
         // clicking at all.
-        if (!SetCursorPos(screenPoint.X, screenPoint.Y))
+        if (screenPoint is { } point && !SetCursorPos(point.X, point.Y))
         {
             throw new InvalidOperationException(
-                $"Could not move the cursor to {screenPoint.X}, {screenPoint.Y} " +
+                $"Could not move the cursor to {point.X}, {point.Y} " +
                 $"(error {Marshal.GetLastWin32Error()}).");
         }
 
-        var inputs = new[]
+        var (down, up) = button switch
         {
-            CreateMouseInput(MOUSEEVENTF_LEFTDOWN),
-            CreateMouseInput(MOUSEEVENTF_LEFTUP),
+            ClickButton.Right => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
+            ClickButton.Middle => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
+            _ => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
         };
 
-        Send(inputs);
+        Send(new[] { CreateMouseInput(down), CreateMouseInput(up) });
     }
 
     private static void Send(INPUT[] inputs)
@@ -101,6 +107,10 @@ internal static class NativeInput
 
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    private const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+    private const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
 
     private const uint MAPVK_VK_TO_VSC = 0;
 

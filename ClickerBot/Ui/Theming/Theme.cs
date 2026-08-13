@@ -46,6 +46,8 @@ internal static class Theme
 
     public static Color FieldHover => Current.FieldHover;
 
+    public static Color Track => Current.Track;
+
     public static Color Border => Current.Border;
 
     public static Color BorderStrong => Current.BorderStrong;
@@ -73,13 +75,22 @@ internal static class Theme
     public static Color DisabledSurface => Current.DisabledSurface;
 
     // --- Typography ------------------------------------------------------
+    //
+    // Words are set in the system UI face. Numbers are not: every number in this app is a
+    // measurement — coordinates, milliseconds, iteration counts, elapsed time — so they are
+    // all set in a monospace face. It reads as instrumentation, and it stops a live counter
+    // from twitching sideways as its digits change width.
 
     public static readonly Font Base = new("Segoe UI", 9F);
-    public static readonly Font Title = new("Segoe UI", 13F, FontStyle.Bold);
-    public static readonly Font CardTitle = new("Segoe UI", 9.5F, FontStyle.Bold);
-    public static readonly Font Button = new("Segoe UI", 10F, FontStyle.Bold);
+    public static readonly Font Title = new("Segoe UI Semibold", 13.5F);
+    public static readonly Font CardTitle = new("Segoe UI", 8F, FontStyle.Bold);
+    public static readonly Font Button = new("Segoe UI Semibold", 10F);
     public static readonly Font Small = new("Segoe UI", 8.25F);
     public static readonly Font Caption = new("Segoe UI", 8F, FontStyle.Bold);
+
+    public static readonly Font Mono = new("Consolas", 9.5F);
+    public static readonly Font MonoSmall = new("Consolas", 8.5F);
+    public static readonly Font MonoLarge = new("Consolas", 17F, FontStyle.Bold);
 
     // --- Drawing helpers -------------------------------------------------
 

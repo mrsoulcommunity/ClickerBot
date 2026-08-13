@@ -25,6 +25,12 @@ internal sealed class ProfileStore
     /// </summary>
     public ThemeMode Appearance { get; set; } = ThemeMode.Light;
 
+    /// <summary>Keeps the window above the one being automated. Application-wide, like the theme.</summary>
+    public bool AlwaysOnTop { get; set; }
+
+    /// <summary>Drops the window to the notification area for the duration of a run.</summary>
+    public bool HideToTrayWhileRunning { get; set; }
+
     [JsonIgnore]
     public static string FilePath { get; } = PathUnder("ClickerBot");
 
@@ -111,6 +117,31 @@ internal sealed class ProfileStore
         {
             File.Move(temporary, FilePath);
         }
+    }
+
+    /// <summary>
+    /// Reads just the profiles out of a file written by <see cref="ExportTo"/> — or, since
+    /// they are the same shape, out of another machine's profiles.json.
+    /// </summary>
+    /// <returns>Null when the file is missing, unreadable, or holds nothing usable.</returns>
+    public static List<Profile>? ReadProfiles(string path)
+    {
+        try
+        {
+            var store = JsonSerializer.Deserialize<ProfileStore>(File.ReadAllText(path), SerializerOptions);
+            return store is not null && store.Sanitize() ? store.Profiles : null;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Writes the profiles to <paramref name="path"/>, leaving app settings out of it.</summary>
+    public void ExportTo(string path)
+    {
+        var bundle = new ProfileStore { Profiles = Profiles, SelectedIndex = 0 };
+        File.WriteAllText(path, JsonSerializer.Serialize(bundle, SerializerOptions));
     }
 
     /// <summary>Returns a name that is not yet used, e.g. "Profile 2".</summary>

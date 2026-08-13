@@ -3,7 +3,7 @@ using System.Drawing.Drawing2D;
 namespace ClickerBot;
 
 /// <summary>A rounded surface panel with a small heading — the basic grouping block of the UI.</summary>
-internal sealed class Card : Panel, IThemedControl
+internal class Card : Panel, IThemedControl
 {
     public Card()
     {
@@ -17,7 +17,7 @@ internal sealed class Card : Panel, IThemedControl
     public string Title { get; set; } = string.Empty;
 
     // Children read Parent.BackColor to clear themselves, so it has to track the palette.
-    public void ApplyTheme() => BackColor = Theme.Surface;
+    public virtual void ApplyTheme() => BackColor = Theme.Surface;
 
     protected override void OnPaint(PaintEventArgs e)
     {

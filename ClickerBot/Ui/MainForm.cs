@@ -1,11 +1,11 @@
 namespace ClickerBot;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private const string StartHotkeyName = "start";
+    private const string PauseHotkeyName = "pause";
     private const string StopHotkeyName = "stop";
-    private const string CaptureHotkeyName = "capture";
-    private static readonly Keys CaptureHotkey = Keys.F9;
+    private const string PickHotkeyName = "pick";
 
     // Profiles
     private readonly SurfacePanel _sidebar = new();
@@ -13,35 +13,65 @@ internal sealed class MainForm : Form
     private readonly FlatButton _newButton = new();
     private readonly FlatButton _duplicateButton = new();
     private readonly FlatButton _deleteButton = new();
+    private readonly FlatButton _importButton = new();
+    private readonly FlatButton _exportButton = new();
     private readonly ThemedTextBox _nameBox = new() { Font = Theme.Title };
-    private readonly ThemedLabel _headerHint = UiFactory.Hint(string.Empty, 0, 0, 0);
+    private readonly ThemedLabel _renameHint = UiFactory.Hint(string.Empty, 0, 0, 0);
     private readonly ThemeToggle _themeToggle = new();
 
-    // Settings
+    // Action
+    private readonly Segmented _modeSelector = new();
     private readonly KeyCaptureBox _keyBox = new();
-    private readonly NumberBox _xInput = UiFactory.Numeric(0, 0, 96, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
-    private readonly NumberBox _yInput = UiFactory.Numeric(0, 0, 96, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
+    private readonly Segmented _buttonSelector = new();
+    private readonly ThemedCheckBox _doubleClick = UiFactory.Check("Double", 0, 0, 78);
+    private readonly Segmented _targetSelector = new();
+    private readonly NumberBox _xInput =
+        UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
+    private readonly NumberBox _yInput =
+        UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
     private readonly FlatButton _captureButton = new();
+    private readonly NumberBox _scatter =
+        UiFactory.Numeric(0, 0, 84, Limits.MinScatter, Limits.MaxScatter, 0);
+
+    // Timing
     private readonly DelayEditor _keyDelay = new();
     private readonly DelayEditor _clickDelay = new();
-    private readonly NumberBox _repetitions =
-        UiFactory.Numeric(0, 0, 108, Limits.MinRepetitions, Limits.MaxRepetitions, 10);
-    private readonly ThemedCheckBox _infinite = UiFactory.Check("Infinite", 0, 0, 92);
-    private readonly KeyCaptureBox _startHotkeyBox = new();
-    private readonly KeyCaptureBox _stopHotkeyBox = new();
+    private readonly NumberBox _startDelay = UiFactory.Numeric(
+        0, 0, 84, Limits.MinStartDelaySeconds, Limits.MaxStartDelaySeconds, 3);
 
-    // Run controls
-    private readonly FlatButton _startButton = new();
-    private readonly FlatButton _stopButton = new();
-    private readonly ThemedLabel _statusLabel = UiFactory.Label(string.Empty, 0, 0, 0);
+    // Repeat
+    private readonly Segmented _repeatSelector = new();
+    private readonly ThemedLabel _repeatLabel = UiFactory.Label("Iterations", 0, 0, 88);
+    private readonly ThemedLabel _repeatHint = UiFactory.Hint(string.Empty, 0, 0, 0);
+    private readonly NumberBox _repetitions =
+        UiFactory.Numeric(0, 0, 118, Limits.MinRepetitions, Limits.MaxRepetitions, 100);
+    private readonly NumberBox _duration =
+        UiFactory.Numeric(0, 0, 118, Limits.MinDurationMinutes, Limits.MaxDurationMinutes, 5);
+
+    // Hotkeys
+    private readonly KeyCaptureBox _startHotkeyBox = new();
+    private readonly KeyCaptureBox _pauseHotkeyBox = new();
+    private readonly KeyCaptureBox _stopHotkeyBox = new();
+    private readonly KeyCaptureBox _pickHotkeyBox = new();
+
+    // Window options
+    private readonly ThemedCheckBox _alwaysOnTop = UiFactory.Check(string.Empty, 0, 0, 320);
+    private readonly ThemedCheckBox _hideToTray = UiFactory.Check(string.Empty, 0, 0, 320);
+
+    // Run
+    private readonly RunPanel _runPanel = new();
     private readonly List<Card> _cards = new();
+    private readonly List<Card> _settingCards = new();
+    private readonly NotifyIcon _tray = new();
 
     private readonly System.Windows.Forms.Timer _saveTimer = new() { Interval = 400 };
+    private readonly System.Windows.Forms.Timer _tickTimer = new() { Interval = 100 };
 
     private ProfileStore _store = new();
     private Profile _current = new();
     private HotkeyManager? _hotkeys;
     private CancellationTokenSource? _cancellation;
+    private PauseGate? _pause;
     private Task? _run;
     private bool _loading;
     private bool _suspendSelection;
@@ -49,7 +79,12 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         BuildUi();
+        BuildTray();
         _saveTimer.Tick += (_, _) => SaveNow();
+
+        // Repaints the cadence strip and the elapsed clock between progress reports, so a slow
+        // run still shows a moving second hand rather than looking frozen.
+        _tickTimer.Tick += (_, _) => _runPanel.Invalidate(invalidateChildren: true);
     }
 
     private bool IsRunning => _cancellation is not null;
@@ -69,8 +104,14 @@ internal sealed class MainForm : Form
         Theme.Apply(_store.Appearance);
         ThemeManager.Attach(this);
 
+        _loading = true;
+        _alwaysOnTop.Checked = _store.AlwaysOnTop;
+        _hideToTray.Checked = _store.HideToTrayWhileRunning;
+        _loading = false;
+        TopMost = _store.AlwaysOnTop;
+
         ReloadProfileList(_store.SelectedIndex);
-        SetStatus("Ready.");
+        _runPanel.SetIdleMessage("Ready");
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -94,6 +135,7 @@ internal sealed class MainForm : Form
         }
 
         SaveNow();
+        _tray.Visible = false;
         _hotkeys?.Dispose();
         _hotkeys = null;
     }
@@ -103,187 +145,63 @@ internal sealed class MainForm : Form
         if (disposing)
         {
             // None of these are in the form's component container, so nothing else releases
-            // them: the timer keeps a callback alive and the hotkeys stay owned by this app.
+            // them: the timers keep callbacks alive and the hotkeys stay owned by this app.
             _saveTimer.Dispose();
+            _tickTimer.Dispose();
+            _tray.Visible = false;
+            _tray.Dispose();
             _hotkeys?.Dispose();
             _hotkeys = null;
             _cancellation?.Dispose();
             _cancellation = null;
+            AppIcon.Dispose();
         }
 
         base.Dispose(disposing);
     }
 
-    // --- UI -------------------------------------------------------------
+    // --- Tray and window options ------------------------------------------
 
-    private void BuildUi()
+    private void BuildTray()
     {
-        Text = "Auto Key & Click";
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
-        StartPosition = FormStartPosition.CenterScreen;
+        _tray.Icon = AppIcon.Idle;
+        _tray.Text = "ClickerBot";
+        _tray.DoubleClick += (_, _) => RestoreFromTray();
 
-        // Every bound in this file is a pixel at 100% scaling, and the fonts are in points, so
-        // on a scaled display the text grows and the boxes around it do not. Naming the design
-        // DPI is what turns that ratio into the scale factor — without it the auto-scale
-        // factor is a flat 1 and the mode above does nothing at all.
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
-        ClientSize = new Size(900, 664);
-        BackColor = Theme.Background;
-        Font = Theme.Base;
-
-        BuildSidebar();
-        BuildHeader();
-        BuildActionCard();
-        BuildDelayCard();
-        BuildRepeatCard();
-        BuildFooter();
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Show ClickerBot", null, (_, _) => RestoreFromTray());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Stop run", null, (_, _) => StopAutomation());
+        menu.Items.Add("Quit", null, (_, _) => Close());
+        _tray.ContextMenuStrip = menu;
     }
 
-    private void BuildSidebar()
+    private void RestoreFromTray()
     {
-        _sidebar.SetBounds(0, 0, 250, ClientSize.Height);
-        _sidebar.Paint += (_, e) =>
+        Show();
+        WindowState = FormWindowState.Normal;
+        _tray.Visible = false;
+        Activate();
+    }
+
+    private void ApplyWindowOptions()
+    {
+        if (_loading)
         {
-            using var pen = new Pen(Theme.Border);
-            e.Graphics.DrawLine(pen, _sidebar.Width - 1, 0, _sidebar.Width - 1, _sidebar.Height);
-        };
+            return;
+        }
 
-        _sidebar.Controls.Add(UiFactory.Caption("PROFILES", 20, 22, 140));
-
-        _profileList.SetBounds(10, 50, 230, 486);
-        _profileList.DisplayMember = nameof(Profile.Name);
-        _profileList.SelectedIndexChanged += ProfileList_SelectedIndexChanged;
-        _sidebar.Controls.Add(_profileList);
-
-        ConfigureButton(_newButton, "New profile", ButtonKind.Secondary, 12, 546, 226, 38);
-        _newButton.Click += (_, _) => CreateProfile();
-
-        ConfigureButton(_duplicateButton, "Duplicate", ButtonKind.Secondary, 12, 592, 108, 38);
-        _duplicateButton.Click += (_, _) => DuplicateProfile();
-
-        ConfigureButton(_deleteButton, "Delete", ButtonKind.Danger, 130, 592, 108, 38);
-        _deleteButton.Click += (_, _) => DeleteProfile();
-
-        _sidebar.Controls.AddRange(new Control[] { _newButton, _duplicateButton, _deleteButton });
-        Controls.Add(_sidebar);
+        _store.AlwaysOnTop = _alwaysOnTop.Checked;
+        _store.HideToTrayWhileRunning = _hideToTray.Checked;
+        TopMost = _store.AlwaysOnTop;
+        ScheduleSave();
     }
 
-    private void BuildHeader()
+    private void UpdateTray(bool running)
     {
-        _nameBox.SetBounds(272, 20, 340, 32);
-        _nameBox.TextChanged += NameBox_TextChanged;
-        _nameBox.Leave += NameBox_Leave;
-        Controls.Add(_nameBox);
-
-        _headerHint.SetBounds(618, 26, 190, 20);
-        _headerHint.TextAlign = ContentAlignment.MiddleRight;
-        _headerHint.Text = "Edit the name to rename";
-        Controls.Add(_headerHint);
-
-        _themeToggle.Location = new Point(818, 21);
-        _themeToggle.ModeRequested += SetTheme;
-        Controls.Add(_themeToggle);
-    }
-
-    private void BuildActionCard()
-    {
-        var card = AddCard("ACTION", 66, 156);
-
-        card.Controls.Add(UiFactory.Label("Key", 20, 52, 90));
-        _keyBox.SetBounds(116, 46, 170, 32);
-        _keyBox.Placeholder = "Click, then press a key";
-        _keyBox.KeyValueChanged += OnSettingChanged;
-        card.Controls.Add(_keyBox);
-        card.Controls.Add(UiFactory.Hint("Any key works — Tab, Enter, Space, \\ … Esc clears it", 296, 52, 290));
-
-        card.Controls.Add(UiFactory.Label("Position", 20, 102, 90));
-        _xInput.Location = new Point(116, 96);
-        _yInput.Location = new Point(220, 96);
-        _xInput.ValueChanged += OnSettingChanged;
-        _yInput.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_xInput);
-        card.Controls.Add(_yInput);
-
-        ConfigureButton(_captureButton, "Capture", ButtonKind.Secondary, 328, 97, 108, 30);
-        _captureButton.Font = Theme.Base;
-        _captureButton.Click += (_, _) => CaptureCursorPosition();
-        card.Controls.Add(_captureButton);
-        card.Controls.Add(UiFactory.Hint("or press F9 anywhere", 446, 102, 150));
-    }
-
-    private void BuildDelayCard()
-    {
-        var card = AddCard("DELAYS", 238, 156);
-
-        card.Controls.Add(UiFactory.Label("After key press", 20, 52, 110));
-        _keyDelay.Location = new Point(136, 46);
-        _keyDelay.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_keyDelay);
-
-        card.Controls.Add(UiFactory.Label("Between clicks", 20, 102, 110));
-        _clickDelay.Location = new Point(136, 96);
-        _clickDelay.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_clickDelay);
-    }
-
-    private void BuildRepeatCard()
-    {
-        var card = AddCard("REPEAT & HOTKEYS", 410, 156);
-
-        card.Controls.Add(UiFactory.Label("Repetitions", 20, 52, 110));
-        _repetitions.Location = new Point(136, 46);
-        _repetitions.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_repetitions);
-
-        _infinite.SetBounds(256, 50, 92, 24);
-        _infinite.CheckedChanged += OnSettingChanged;
-        card.Controls.Add(_infinite);
-        card.Controls.Add(UiFactory.Hint("runs until you stop it", 356, 52, 200));
-
-        card.Controls.Add(UiFactory.Label("Start hotkey", 20, 102, 110));
-        _startHotkeyBox.SetBounds(136, 96, 130, 32);
-        _startHotkeyBox.Placeholder = "Not set";
-        _startHotkeyBox.KeyValueChanged += StartHotkey_Changed;
-        card.Controls.Add(_startHotkeyBox);
-
-        card.Controls.Add(UiFactory.Label("Stop hotkey", 286, 102, 90));
-        _stopHotkeyBox.SetBounds(382, 96, 130, 32);
-        _stopHotkeyBox.Placeholder = "Not set";
-        _stopHotkeyBox.KeyValueChanged += StopHotkey_Changed;
-        card.Controls.Add(_stopHotkeyBox);
-    }
-
-    private void BuildFooter()
-    {
-        ConfigureButton(_startButton, "Start", ButtonKind.Primary, 274, 582, 290, 44);
-        _startButton.Click += (_, _) => StartAutomation();
-
-        ConfigureButton(_stopButton, "Stop", ButtonKind.Secondary, 586, 582, 290, 44);
-        _stopButton.Enabled = false;
-        _stopButton.Click += (_, _) => StopAutomation();
-
-        _statusLabel.SetBounds(274, 636, 602, 20);
-        _statusLabel.Role = TextRole.Secondary;
-
-        Controls.AddRange(new Control[] { _startButton, _stopButton, _statusLabel });
-    }
-
-    private Card AddCard(string title, int top, int height)
-    {
-        var card = new Card { Title = title };
-        card.SetBounds(274, top, 602, height);
-        Controls.Add(card);
-        _cards.Add(card);
-        return card;
-    }
-
-    private static void ConfigureButton(FlatButton button, string text, ButtonKind kind, int x, int y, int width, int height)
-    {
-        button.Text = text;
-        button.Kind = kind;
-        button.SetBounds(x, y, width, height);
+        _tray.Icon = AppIcon.For(running);
+        _tray.Text = running ? $"ClickerBot — running \"{_current.Name}\"" : "ClickerBot";
+        Icon = _tray.Icon;
     }
 
     // --- Theme -----------------------------------------------------------
@@ -341,15 +259,24 @@ internal sealed class MainForm : Form
 
         _loading = true;
         _nameBox.Text = _current.Name;
+        _modeSelector.SelectedIndex = (int)_current.Mode;
         _keyBox.Key = _current.Key;
+        _buttonSelector.SelectedIndex = (int)_current.Button;
+        _doubleClick.Checked = _current.DoubleClick;
+        _targetSelector.SelectedIndex = (int)_current.Target;
         _xInput.Value = _current.ClickX;
         _yInput.Value = _current.ClickY;
+        _scatter.Value = _current.Scatter;
         _keyDelay.Value = _current.KeyDelay;
         _clickDelay.Value = _current.ClickDelay;
+        _startDelay.Value = _current.StartDelaySeconds;
+        _repeatSelector.SelectedIndex = (int)_current.Repeat;
         _repetitions.Value = _current.Repetitions;
-        _infinite.Checked = _current.InfiniteLoop;
+        _duration.Value = _current.DurationMinutes;
         _startHotkeyBox.Key = _current.StartHotkey;
+        _pauseHotkeyBox.Key = _current.PauseHotkey;
         _stopHotkeyBox.Key = _current.StopHotkey;
+        _pickHotkeyBox.Key = _current.PickHotkey;
         _loading = false;
 
         UpdateControlStates();
@@ -364,7 +291,7 @@ internal sealed class MainForm : Form
         ReloadProfileList(_store.Profiles.Count - 1);
         _nameBox.Focus();
         _nameBox.SelectAll();
-        SetStatus($"Created \"{profile.Name}\".");
+        _runPanel.SetIdleMessage($"Created \"{profile.Name}\"");
     }
 
     private void DuplicateProfile()
@@ -373,14 +300,14 @@ internal sealed class MainForm : Form
         copy.Name = _store.CreateUniqueName(_current.Name + " copy");
         _store.Profiles.Add(copy);
         ReloadProfileList(_store.Profiles.Count - 1);
-        SetStatus($"Duplicated to \"{copy.Name}\".");
+        _runPanel.SetIdleMessage($"Duplicated to \"{copy.Name}\"");
     }
 
     private void DeleteProfile()
     {
         if (_store.Profiles.Count == 1)
         {
-            SetStatus("At least one profile is required.", TextRole.Danger);
+            _runPanel.SetIdleMessage("At least one profile is required", TextRole.Danger);
             return;
         }
 
@@ -403,7 +330,66 @@ internal sealed class MainForm : Form
         string name = _current.Name;
         _store.Profiles.RemoveAt(index);
         ReloadProfileList(Math.Max(0, index - 1));
-        SetStatus($"Deleted \"{name}\".");
+        _runPanel.SetIdleMessage($"Deleted \"{name}\"");
+    }
+
+    private void ImportProfiles()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Import profiles",
+            Filter = "ClickerBot profiles (*.json)|*.json|All files (*.*)|*.*",
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var imported = ProfileStore.ReadProfiles(dialog.FileName);
+        if (imported is null)
+        {
+            _runPanel.SetIdleMessage("That file does not contain any profiles", TextRole.Danger);
+            return;
+        }
+
+        // Added rather than replacing: an import that silently wiped the existing profiles
+        // would be one undo the app does not have.
+        foreach (var profile in imported)
+        {
+            profile.Name = _store.CreateUniqueName(profile.Name);
+            _store.Profiles.Add(profile);
+        }
+
+        ReloadProfileList(_store.Profiles.Count - 1);
+        SaveNow();
+        _runPanel.SetIdleMessage(
+            imported.Count == 1 ? "Imported 1 profile" : $"Imported {imported.Count} profiles");
+    }
+
+    private void ExportProfiles()
+    {
+        using var dialog = new SaveFileDialog
+        {
+            Title = "Export profiles",
+            Filter = "ClickerBot profiles (*.json)|*.json",
+            FileName = "clickerbot-profiles.json",
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            _store.ExportTo(dialog.FileName);
+            _runPanel.SetIdleMessage($"Exported {_store.Profiles.Count} profiles");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _runPanel.SetIdleMessage("Could not write that file: " + ex.Message, TextRole.Danger);
+        }
     }
 
     private void NameBox_TextChanged(object? sender, EventArgs e)
@@ -439,52 +425,70 @@ internal sealed class MainForm : Form
             return;
         }
 
+        _current.Mode = (ActionMode)_modeSelector.SelectedIndex;
         _current.Key = _keyBox.Key;
+        _current.Button = (ClickButton)_buttonSelector.SelectedIndex;
+        _current.DoubleClick = _doubleClick.Checked;
+        _current.Target = (ClickTarget)_targetSelector.SelectedIndex;
         _current.ClickX = _xInput.Value;
         _current.ClickY = _yInput.Value;
+        _current.Scatter = _scatter.Value;
         _current.KeyDelay = _keyDelay.Value;
         _current.ClickDelay = _clickDelay.Value;
+        _current.StartDelaySeconds = _startDelay.Value;
+        _current.Repeat = (RepeatMode)_repeatSelector.SelectedIndex;
         _current.Repetitions = _repetitions.Value;
-        _current.InfiniteLoop = _infinite.Checked;
+        _current.DurationMinutes = _duration.Value;
 
         UpdateControlStates();
         ScheduleSave();
     }
 
-    private void StartHotkey_Changed(object? sender, EventArgs e)
+    private void HotkeyBox_Changed(object? sender, EventArgs e)
     {
         if (_loading)
         {
             return;
         }
 
-        if (_startHotkeyBox.Key != Keys.None && _startHotkeyBox.Key == _stopHotkeyBox.Key)
+        // Read as a set: every hotkey has to be distinct from every other, so the check is
+        // over the whole group rather than pairwise between the two that happen to be next
+        // to each other.
+        var assignments = new[]
         {
-            SetStatus("Start and Stop need different keys.", TextRole.Danger);
-            _startHotkeyBox.Key = _current.StartHotkey;
-            return;
+            (Box: _startHotkeyBox, Name: "Start", Current: _current.StartHotkey),
+            (Box: _pauseHotkeyBox, Name: "Pause", Current: _current.PauseHotkey),
+            (Box: _stopHotkeyBox, Name: "Stop", Current: _current.StopHotkey),
+            (Box: _pickHotkeyBox, Name: "Pick point", Current: _current.PickHotkey),
+        };
+
+        foreach (var (box, _, previous) in assignments)
+        {
+            if (box.Key == Keys.None)
+            {
+                continue;
+            }
+
+            var clash = assignments.FirstOrDefault(
+                other => !ReferenceEquals(other.Box, box) && other.Box.Key == box.Key);
+
+            if (clash.Box is not null)
+            {
+                _runPanel.SetIdleMessage(
+                    $"{KeyNames.Describe(box.Key)} is already the {clash.Name} hotkey", TextRole.Danger);
+
+                _loading = true;
+                box.Key = previous;
+                _loading = false;
+                return;
+            }
         }
 
         _current.StartHotkey = _startHotkeyBox.Key;
-        RegisterHotkeys();
-        ScheduleSave();
-    }
-
-    private void StopHotkey_Changed(object? sender, EventArgs e)
-    {
-        if (_loading)
-        {
-            return;
-        }
-
-        if (_stopHotkeyBox.Key != Keys.None && _stopHotkeyBox.Key == _startHotkeyBox.Key)
-        {
-            SetStatus("Start and Stop need different keys.", TextRole.Danger);
-            _stopHotkeyBox.Key = _current.StopHotkey;
-            return;
-        }
-
+        _current.PauseHotkey = _pauseHotkeyBox.Key;
         _current.StopHotkey = _stopHotkeyBox.Key;
+        _current.PickHotkey = _pickHotkeyBox.Key;
+
         RegisterHotkeys();
         ScheduleSave();
     }
@@ -505,7 +509,7 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            SetStatus("Could not save profiles: " + ex.Message, TextRole.Danger);
+            _runPanel.SetIdleMessage("Could not save profiles: " + ex.Message, TextRole.Danger);
         }
     }
 
@@ -520,29 +524,23 @@ internal sealed class MainForm : Form
 
         var unavailable = new List<string>();
 
-        if (!_hotkeys.Assign(StartHotkeyName, _current.StartHotkey))
+        void Assign(string slot, Keys key, string label)
         {
-            unavailable.Add(KeyNames.Describe(_current.StartHotkey) + " (start)");
+            if (!_hotkeys.Assign(slot, key))
+            {
+                unavailable.Add($"{KeyNames.Describe(key)} ({label})");
+            }
         }
 
-        if (!_hotkeys.Assign(StopHotkeyName, _current.StopHotkey))
-        {
-            unavailable.Add(KeyNames.Describe(_current.StopHotkey) + " (stop)");
-        }
-
-        bool captureTaken = _current.StartHotkey == CaptureHotkey || _current.StopHotkey == CaptureHotkey;
-        if (captureTaken)
-        {
-            _hotkeys.Release(CaptureHotkeyName);
-        }
-        else if (!_hotkeys.Assign(CaptureHotkeyName, CaptureHotkey))
-        {
-            unavailable.Add("F9 (capture position)");
-        }
+        Assign(StartHotkeyName, _current.StartHotkey, "start");
+        Assign(PauseHotkeyName, _current.PauseHotkey, "pause");
+        Assign(StopHotkeyName, _current.StopHotkey, "stop");
+        Assign(PickHotkeyName, _current.PickHotkey, "pick point");
 
         if (unavailable.Count > 0)
         {
-            SetStatus("Already used by another app: " + string.Join(", ", unavailable), TextRole.Danger);
+            _runPanel.SetIdleMessage(
+                "Already used by another app: " + string.Join(", ", unavailable), TextRole.Danger);
         }
     }
 
@@ -553,10 +551,13 @@ internal sealed class MainForm : Form
             case StartHotkeyName when !IsRunning:
                 StartAutomation();
                 break;
+            case PauseHotkeyName when IsRunning:
+                TogglePause();
+                break;
             case StopHotkeyName:
                 StopAutomation();
                 break;
-            case CaptureHotkeyName when !IsRunning:
+            case PickHotkeyName when !IsRunning:
                 CaptureCursorPosition();
                 break;
         }
@@ -569,7 +570,7 @@ internal sealed class MainForm : Form
         Point position = Cursor.Position;
         _xInput.Value = position.X;
         _yInput.Value = position.Y;
-        SetStatus($"Click position saved: {position.X}, {position.Y}");
+        _runPanel.SetIdleMessage($"Click point set to {position.X}, {position.Y}");
     }
 
     private void StartAutomation()
@@ -584,76 +585,139 @@ internal sealed class MainForm : Form
         // focus off that field, which is exactly when this matters.
         CommitPendingEdits();
 
-        if (_current.Key == Keys.None)
+        if (Blocker() is string problem)
         {
-            SetStatus("Pick a key first: click the key field, then press any key.", TextRole.Danger);
-            return;
-        }
-
-        if (ConflictingHotkey(_current.Key) is string conflict)
-        {
-            SetStatus($"{KeyNames.Describe(_current.Key)} is also the {conflict} — choose another key.",
-                TextRole.Danger);
+            _runPanel.SetIdleMessage(problem, TextRole.Danger);
             return;
         }
 
         var settings = AutomationSettings.FromProfile(_current);
         _cancellation = new CancellationTokenSource();
+        _pause = new PauseGate();
         SaveNow();
-        UpdateControlStates();
 
-        _run = RunAsync(settings, _cancellation.Token);
+        _runPanel.BeginRun(settings.Repetitions, settings.Duration);
+        UpdateControlStates();
+        UpdateTray(running: true);
+        _tickTimer.Start();
+
+        if (_hideToTray.Checked)
+        {
+            _tray.Visible = true;
+            Hide();
+        }
+
+        _run = RunAsync(settings, _pause, _cancellation.Token);
     }
 
-    /// <summary>
-    /// Names the hotkey <paramref name="key"/> collides with, or null when it is free.
-    ///
-    /// A synthesized key press reaches registered hotkeys just like a real one, so a key that
-    /// doubles as one turns every iteration into a Stop, a Start, or — with F9 — a silent
-    /// rewrite of the click target the run is aiming at.
-    /// </summary>
-    private string? ConflictingHotkey(Keys key) =>
-        key == _current.StopHotkey ? "Stop hotkey"
-        : key == _current.StartHotkey ? "Start hotkey"
-        : key == CaptureHotkey ? "capture-position hotkey (F9)"
-        : null;
-
-    private async Task RunAsync(AutomationSettings settings, CancellationToken cancellationToken)
+    /// <summary>The reason this profile cannot run right now, or null when it can.</summary>
+    private string? Blocker()
     {
-        string total = settings.Repetitions?.ToString() ?? "∞";
-        var progress = new Progress<int>(iteration =>
-            SetStatus($"Running \"{_current.Name}\" — iteration {iteration} of {total}", TextRole.Success));
+        if (_current.UsesKey && _current.Key == Keys.None)
+        {
+            return "Pick a key first: click the key field, then press any key";
+        }
 
-        SetStatus($"Running \"{_current.Name}\" — 0 of {total}", TextRole.Success);
+        if (!_current.UsesKey)
+        {
+            return null;
+        }
+
+        // A synthesized key press reaches registered hotkeys just like a real one, so a key
+        // that doubles as one turns every iteration into a Stop, a Start, or a silent rewrite
+        // of the click target the run is aiming at.
+        var conflicts = new (Keys Key, string Name)[]
+        {
+            (_current.StopHotkey, "Stop"),
+            (_current.StartHotkey, "Start"),
+            (_current.PauseHotkey, "Pause"),
+            (_current.PickHotkey, "Pick point"),
+        };
+
+        foreach (var (key, name) in conflicts)
+        {
+            if (key != Keys.None && key == _current.Key)
+            {
+                return $"{KeyNames.Describe(_current.Key)} is also the {name} hotkey — choose another key";
+            }
+        }
+
+        return null;
+    }
+
+    private async Task RunAsync(AutomationSettings settings, PauseGate pause, CancellationToken token)
+    {
+        var progress = new Progress<RunProgress>(report =>
+        {
+            _runPanel.Update(report);
+
+            // One tick per completed iteration, which is what gives the strip its rhythm.
+            if (report.Phase == RunPhase.Running && report.Iteration > 0)
+            {
+                _runPanel.MarkIteration();
+            }
+        });
+
+        string outcome;
+        TextRole role;
 
         try
         {
-            await AutomationRunner.RunAsync(settings, progress, cancellationToken);
-            SetStatus("Finished.");
+            await AutomationRunner.RunAsync(settings, pause, progress, token);
+            outcome = "Finished";
+            role = TextRole.Success;
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Stopped.");
+            outcome = "Stopped";
+            role = TextRole.Secondary;
         }
         catch (Exception ex)
         {
-            SetStatus("Error: " + ex.Message, TextRole.Danger);
+            outcome = ex.Message;
+            role = TextRole.Danger;
         }
         finally
         {
             _cancellation?.Dispose();
             _cancellation = null;
-            UpdateControlStates();
+            _pause = null;
+            _tickTimer.Stop();
+            UpdateTray(running: false);
         }
+
+        if (!Visible)
+        {
+            RestoreFromTray();
+        }
+
+        _runPanel.EndRun(outcome, role);
+        UpdateControlStates();
     }
 
     private void StopAutomation() => _cancellation?.Cancel();
+
+    private void TogglePause()
+    {
+        _pause?.Toggle();
+
+        // The gate reports itself through the runner, but a run sitting inside a long delay
+        // will not reach that report for a while. Reflect it now so the button never lies.
+        if (_pause is { } gate)
+        {
+            _runPanel.Update(new RunProgress(
+                gate.IsPaused ? RunPhase.Paused : RunPhase.Running, 0, TimeSpan.Zero, 0));
+        }
+    }
 
     private void CommitPendingEdits()
     {
         _xInput.Commit();
         _yInput.Commit();
+        _scatter.Commit();
+        _startDelay.Commit();
         _repetitions.Commit();
+        _duration.Commit();
         _keyDelay.Commit();
         _clickDelay.Commit();
     }
@@ -664,25 +728,45 @@ internal sealed class MainForm : Form
     {
         bool running = IsRunning;
 
-        _startButton.Enabled = !running;
-        _stopButton.Enabled = running;
-        _stopButton.Kind = running ? ButtonKind.Danger : ButtonKind.Secondary;
         _sidebar.Enabled = !running;
         _nameBox.Enabled = !running;
 
-        foreach (var card in _cards)
+        foreach (var card in _settingCards)
         {
             card.Enabled = !running;
         }
 
-        _repetitions.Enabled = !running && !_infinite.Checked;
-    }
+        // Fields that do not apply to the chosen mode are disabled rather than hidden: the
+        // card keeps its shape, so switching modes never makes the layout jump.
+        _keyBox.Enabled = _current.UsesKey;
+        _buttonSelector.Enabled = _current.UsesMouse;
+        _doubleClick.Enabled = _current.UsesMouse;
+        _targetSelector.Enabled = _current.UsesMouse;
 
-    private void SetStatus(string text, TextRole role = TextRole.Secondary)
-    {
-        _statusLabel.Text = text;
+        bool fixedPoint = _current.UsesMouse && _current.Target == ClickTarget.FixedPoint;
+        _xInput.Enabled = fixedPoint;
+        _yInput.Enabled = fixedPoint;
+        _captureButton.Enabled = fixedPoint;
+        _scatter.Enabled = fixedPoint;
 
-        // Stored as a role rather than a color so the status survives a theme switch.
-        _statusLabel.Role = role;
+        // The key delay only paces the gap between a key and a click, which only the full
+        // sequence has.
+        _keyDelay.Enabled = _current.Mode == ActionMode.KeyAndClick;
+
+        bool byCount = _current.Repeat == RepeatMode.Count;
+        bool byDuration = _current.Repeat == RepeatMode.Duration;
+        _repetitions.Visible = byCount;
+        _duration.Visible = byDuration;
+        _repeatLabel.Visible = byCount || byDuration;
+        _repeatLabel.Text = byCount ? "Iterations" : "Minutes";
+
+        _repeatHint.Text = _current.Repeat switch
+        {
+            RepeatMode.Count => "The run ends once it has done this many iterations.",
+            RepeatMode.Duration => "The run ends after this long. Paused time does not count.",
+            _ => "The run keeps going until you stop it.",
+        };
+
+        _runPanel.SetStartEnabled(!running);
     }
 }

@@ -2,19 +2,19 @@ namespace ClickerBot;
 
 /// <summary>
 /// Edits one <see cref="DelaySetting"/>: a fixed value, or a random min–max range
-/// when "Random" is ticked. Used for both the keyboard delay and the click delay.
+/// when "Random" is ticked. Used for both delays in the timing card.
 /// </summary>
 internal sealed class DelayEditor : Panel, IThemedControl
 {
     private const int MinDelay = Limits.MinDelayMs;
     private const int MaxDelay = Limits.MaxDelayMs;
 
-    private readonly ThemedCheckBox _random = UiFactory.Check("Random", 0, 4, 82);
-    private readonly NumberBox _fixed = UiFactory.Numeric(92, 0, 104, MinDelay, MaxDelay, 100);
-    private readonly NumberBox _min = UiFactory.Numeric(92, 0, 96, MinDelay, MaxDelay, 80);
-    private readonly NumberBox _max = UiFactory.Numeric(214, 0, 96, MinDelay, MaxDelay, 150);
-    private readonly ThemedLabel _dash = UiFactory.Label("to", 192, 0, 18, Theme.Small, TextRole.Secondary);
-    private readonly ThemedLabel _unit = UiFactory.Label("ms", 0, 0, 26, Theme.Small, TextRole.Secondary);
+    private readonly ThemedCheckBox _random = UiFactory.Check("Random", 0, 4, 78);
+    private readonly NumberBox _fixed = UiFactory.Numeric(86, 0, 96, MinDelay, MaxDelay, 100);
+    private readonly NumberBox _min = UiFactory.Numeric(86, 0, 88, MinDelay, MaxDelay, 80);
+    private readonly ThemedLabel _dash = UiFactory.Label("to", 178, 0, 20, Theme.Small, TextRole.Secondary);
+    private readonly NumberBox _max = UiFactory.Numeric(200, 0, 88, MinDelay, MaxDelay, 150);
+    private readonly ThemedLabel _unit = UiFactory.Label("ms", 0, 0, 26, Theme.MonoSmall, TextRole.Secondary);
 
     private bool _loading;
 
@@ -22,7 +22,7 @@ internal sealed class DelayEditor : Panel, IThemedControl
     {
         // Left inherited rather than transparent, so children clearing themselves with the
         // backdrop color resolve to the card surface.
-        Size = new Size(350, 32);
+        Size = new Size(320, 32);
         Font = Theme.Base;
 
         _dash.TextAlign = ContentAlignment.MiddleCenter;

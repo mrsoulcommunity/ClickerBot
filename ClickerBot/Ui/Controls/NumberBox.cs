@@ -35,7 +35,9 @@ internal sealed class NumberBox : Control, IThemedControl
         Font = Theme.Base;
         Size = new Size(90, 30);
 
-        _input.Font = Font;
+        // The field carries a number, so it is set in the monospace face like every other
+        // number in the window — and the digits keep their column as the value changes.
+        _input.Font = Theme.Mono;
         _input.GotFocus += (_, _) => Invalidate();
         _input.LostFocus += (_, _) =>
         {
@@ -110,7 +112,6 @@ internal sealed class NumberBox : Control, IThemedControl
 
     protected override void OnFontChanged(EventArgs e)
     {
-        _input.Font = Font;
         LayoutInput();
         base.OnFontChanged(e);
     }

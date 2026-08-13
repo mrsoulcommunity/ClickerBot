@@ -22,4 +22,19 @@ internal static class Limits
 
     /// <summary>Ten minutes: long enough for any sane pacing, short enough to stay a delay.</summary>
     public const int MaxDelayMs = 600_000;
+
+    /// <summary>No scatter at all is the default; the cap keeps the click near what you aimed at.</summary>
+    public const int MinScatter = 0;
+
+    public const int MaxScatter = 500;
+
+    /// <summary>A run can start immediately, or wait long enough for you to change windows.</summary>
+    public const int MinStartDelaySeconds = 0;
+
+    public const int MaxStartDelaySeconds = 60;
+
+    public const int MinDurationMinutes = 1;
+
+    /// <summary>Twenty-four hours.</summary>
+    public const int MaxDurationMinutes = 1_440;
 }

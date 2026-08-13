@@ -2,7 +2,7 @@
 setlocal
 
 rem ---------------------------------------------------------------------------
-rem  Auto Key & Click - one-click launcher
+rem  ClickerBot - one-click launcher
 rem
 rem  Double-click this file to start the app. On the first run (or after a
 rem  fresh clone) it builds the project once, then launches it. Every run
@@ -16,7 +16,7 @@ set "EXE=ClickerBot\bin\Release\net8.0-windows\ClickerBot.exe"
 
 if exist "%EXE%" goto launch
 
-title Building Auto Key ^& Click...
+title Building ClickerBot...
 
 where dotnet >nul 2>&1
 if errorlevel 1 goto no_dotnet
