@@ -21,6 +21,9 @@ internal sealed class Profile
 
     public ClickTarget Target { get; set; } = ClickTarget.FixedPoint;
 
+    /// <summary>The line <see cref="ActionMode.TypeText"/> types each iteration.</summary>
+    public string Text { get; set; } = string.Empty;
+
     public int ClickX { get; set; }
 
     public int ClickY { get; set; }
@@ -57,13 +60,21 @@ internal sealed class Profile
     [System.Text.Json.Serialization.JsonIgnore]
     public Point ClickPoint => new(ClickX, ClickY);
 
+    // Written as explicit positive lists rather than a negation of the other modes: with more
+    // than two modes, "not ClickOnly" and "the modes that use a key" stop being the same set,
+    // and a negation would silently start claiming TypeText needs a key.
+
     /// <summary>True when this profile presses a key, which is what makes the key field matter.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesKey => Mode != ActionMode.ClickOnly;
+    public bool UsesKey => Mode is ActionMode.KeyAndClick or ActionMode.KeyOnly;
 
     /// <summary>True when this profile clicks, which is what makes the mouse settings matter.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesMouse => Mode != ActionMode.KeyOnly;
+    public bool UsesMouse => Mode is ActionMode.KeyAndClick or ActionMode.ClickOnly;
+
+    /// <summary>True when this profile types text, which is what makes the text field matter.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool UsesText => Mode == ActionMode.TypeText;
 
     public Profile Clone() => new()
     {
@@ -73,6 +84,7 @@ internal sealed class Profile
         Button = Button,
         DoubleClick = DoubleClick,
         Target = Target,
+        Text = Text,
         ClickX = ClickX,
         ClickY = ClickY,
         Scatter = Scatter,
@@ -105,6 +117,15 @@ internal sealed class Profile
         Button = Enum.IsDefined(Button) ? Button : ClickButton.Left;
         Target = Enum.IsDefined(Target) ? Target : ClickTarget.FixedPoint;
         Repeat = Enum.IsDefined(Repeat) ? Repeat : RepeatMode.Count;
+
+        if (Text is null)
+        {
+            Text = string.Empty;
+        }
+        else if (Text.Length > Limits.MaxTypedTextLength)
+        {
+            Text = Text[..Limits.MaxTypedTextLength];
+        }
 
         ClickX = Math.Clamp(ClickX, Limits.MinCoordinate, Limits.MaxCoordinate);
         ClickY = Math.Clamp(ClickY, Limits.MinCoordinate, Limits.MaxCoordinate);

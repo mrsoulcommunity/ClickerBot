@@ -37,4 +37,10 @@ internal static class Limits
 
     /// <summary>Twenty-four hours.</summary>
     public const int MaxDurationMinutes = 1_440;
+
+    /// <summary>Generous for a line of chat or form text; not a suggestion of how long to make it.</summary>
+    public const int MaxTypedTextLength = 4_000;
+
+    /// <summary>How many finished runs the history keeps before the oldest fall off.</summary>
+    public const int MaxHistoryEntries = 50;
 }

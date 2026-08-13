@@ -31,6 +31,13 @@ internal sealed class ProfileStore
     /// <summary>Drops the window to the notification area for the duration of a run.</summary>
     public bool HideToTrayWhileRunning { get; set; }
 
+    /// <summary>
+    /// Aborts a run the moment the real cursor touches a screen corner — a backstop for when
+    /// the configured Stop hotkey cannot be registered. On by default: a safety net should not
+    /// need to be opted into.
+    /// </summary>
+    public bool FailsafeEnabled { get; set; } = true;
+
     [JsonIgnore]
     public static string FilePath { get; } = PathUnder("ClickerBot");
 

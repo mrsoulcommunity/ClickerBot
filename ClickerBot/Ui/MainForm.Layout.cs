@@ -11,7 +11,7 @@ namespace ClickerBot;
 internal sealed partial class MainForm
 {
     private const int WindowWidth = 1060;
-    private const int WindowHeight = 750;
+    private const int WindowHeight = 842;
 
     private const int RailWidth = 252;
     private const int ColumnLeft = 276;
@@ -78,9 +78,12 @@ internal sealed partial class MainForm
         Configure(_exportButton, "Export", ButtonKind.Secondary, 130, 696, 110, 34);
         _exportButton.Click += (_, _) => ExportProfiles();
 
+        Configure(_historyButton, "History", ButtonKind.Secondary, 12, 738, 228, 34);
+        _historyButton.Click += (_, _) => RunHistoryDialog.Show(this, _history);
+
         _sidebar.Controls.AddRange(new Control[]
         {
-            _newButton, _duplicateButton, _deleteButton, _importButton, _exportButton,
+            _newButton, _duplicateButton, _deleteButton, _importButton, _exportButton, _historyButton,
         });
 
         Controls.Add(_sidebar);
@@ -108,17 +111,30 @@ internal sealed partial class MainForm
         var card = AddCard("ACTION", ColumnLeft, 72, 290);
 
         card.Controls.Add(UiFactory.Label("Mode", 20, 48, 76));
-        _modeSelector.Items = new[] { "Key + click", "Key only", "Click only" };
+        // Short enough to survive four-way division of the row's width without ellipsizing;
+        // order matches ActionMode's declaration order exactly, since the index is cast
+        // straight to the enum in OnSettingChanged.
+        _modeSelector.Items = new[] { "Both", "Key", "Click", "Text" };
         _modeSelector.SetBounds(100, 42, 254, 30);
         _modeSelector.SelectedIndexChanged += OnSettingChanged;
         card.Controls.Add(_modeSelector);
 
-        card.Controls.Add(UiFactory.Label("Key", 20, 88, 76));
+        _keyLabel.SetBounds(20, 88, 76, 20);
+        card.Controls.Add(_keyLabel);
+
         _keyBox.SetBounds(100, 82, 174, 32);
         _keyBox.Placeholder = "Click, then press a key";
         _keyBox.KeyValueChanged += OnSettingChanged;
         card.Controls.Add(_keyBox);
-        card.Controls.Add(UiFactory.Hint("Esc clears", 282, 88, 72));
+
+        _keyHint.SetBounds(282, 88, 72, 20);
+        card.Controls.Add(_keyHint);
+
+        // Occupies the same row as the key field — only one of the two is ever visible, since
+        // a profile either presses a key or types text, never both. See UpdateControlStates.
+        _typeText.SetBounds(100, 82, 254, 32);
+        _typeText.ValueChanged += OnSettingChanged;
+        card.Controls.Add(_typeText);
 
         card.Controls.Add(UiFactory.Label("Button", 20, 128, 76));
         _buttonSelector.Items = new[] { "Left", "Right", "Middle" };
@@ -223,22 +239,33 @@ internal sealed partial class MainForm
 
     private void BuildWindowCard()
     {
-        var card = AddCard("WINDOW", ColumnRight, 496, 98);
+        var card = AddCard("WINDOW", ColumnRight, 496, 190);
 
-        _alwaysOnTop.SetBounds(20, 40, 320, 24);
+        _alwaysOnTop.SetBounds(20, 40, 334, 24);
         _alwaysOnTop.Text = "Keep above other windows";
         _alwaysOnTop.CheckedChanged += (_, _) => ApplyWindowOptions();
         card.Controls.Add(_alwaysOnTop);
 
-        _hideToTray.SetBounds(20, 68, 320, 24);
+        _hideToTray.SetBounds(20, 68, 334, 24);
         _hideToTray.Text = "Hide to the notification area while running";
         _hideToTray.CheckedChanged += (_, _) => ApplyWindowOptions();
         card.Controls.Add(_hideToTray);
+
+        _autoStart.SetBounds(20, 96, 334, 24);
+        _autoStart.Text = "Start ClickerBot when Windows starts";
+        _autoStart.CheckedChanged += (_, _) => ApplyAutoStart();
+        card.Controls.Add(_autoStart);
+
+        _failsafe.SetBounds(20, 124, 334, 24);
+        _failsafe.Text = "Abort if the mouse touches a screen corner";
+        _failsafe.CheckedChanged += (_, _) => ApplyWindowOptions();
+        card.Controls.Add(_failsafe);
     }
 
     private void BuildRunPanel()
     {
-        _runPanel.SetBounds(ColumnLeft, 610, (CardWidth * 2) + Gutter, 120);
+        _runPanel.SetBounds(ColumnLeft, 702, (CardWidth * 2) + Gutter, 120);
+        _runPanel.TestRequested += (_, _) => TestAction();
         _runPanel.StartRequested += (_, _) => StartAutomation();
         _runPanel.PauseRequested += (_, _) => TogglePause();
         _runPanel.StopRequested += (_, _) => StopAutomation();

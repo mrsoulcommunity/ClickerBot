@@ -9,6 +9,7 @@ internal sealed record AutomationSettings(
     ClickButton Button,
     bool DoubleClick,
     ClickTarget Target,
+    string Text,
     Point ClickPoint,
     int Scatter,
     DelaySetting KeyDelay,
@@ -23,6 +24,7 @@ internal sealed record AutomationSettings(
         profile.Button,
         profile.DoubleClick,
         profile.Target,
+        profile.Text,
         profile.ClickPoint,
         profile.Scatter,
         profile.KeyDelay.Clone(),
@@ -86,22 +88,7 @@ internal static class AutomationRunner
 
             await WaitWhilePausedAsync(pause, clock, iteration, progress, cancellationToken).ConfigureAwait(true);
 
-            if (settings.Mode != ActionMode.ClickOnly)
-            {
-                NativeInput.PressKey(settings.Key);
-
-                // Only the full sequence has a gap between the key and the click to pace.
-                if (settings.Mode == ActionMode.KeyAndClick)
-                {
-                    await Task.Delay(settings.KeyDelay.Next(random), cancellationToken).ConfigureAwait(true);
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-            }
-
-            if (settings.Mode != ActionMode.KeyOnly)
-            {
-                Click(settings, random);
-            }
+            await PerformIterationAsync(settings, random, cancellationToken).ConfigureAwait(true);
 
             iteration++;
             progress.Report(new RunProgress(RunPhase.Running, iteration, clock.Elapsed, 0));
@@ -117,6 +104,44 @@ internal static class AutomationRunner
         }
 
         clock.Stop();
+    }
+
+    /// <summary>
+    /// Performs exactly one iteration's action — the same code <see cref="RunAsync"/> repeats
+    /// — so a "test this" button can fire it once without any of the looping, pausing, or
+    /// stop-condition machinery around it.
+    /// </summary>
+    public static Task RunOnceAsync(AutomationSettings settings, CancellationToken cancellationToken) =>
+        PerformIterationAsync(settings, Random.Shared, cancellationToken);
+
+    private static async Task PerformIterationAsync(
+        AutomationSettings settings, Random random, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        switch (settings.Mode)
+        {
+            case ActionMode.KeyAndClick:
+                NativeInput.PressKey(settings.Key);
+
+                // Only the full sequence has a gap between the key and the click to pace.
+                await Task.Delay(settings.KeyDelay.Next(random), cancellationToken).ConfigureAwait(true);
+                cancellationToken.ThrowIfCancellationRequested();
+                Click(settings, random);
+                break;
+
+            case ActionMode.KeyOnly:
+                NativeInput.PressKey(settings.Key);
+                break;
+
+            case ActionMode.ClickOnly:
+                Click(settings, random);
+                break;
+
+            case ActionMode.TypeText:
+                NativeInput.TypeText(settings.Text);
+                break;
+        }
     }
 
     private static async Task WaitWhilePausedAsync(

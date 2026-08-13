@@ -11,6 +11,9 @@ internal enum ActionMode
 
     /// <summary>Click only — a plain auto-clicker, with no key to choose.</summary>
     ClickOnly,
+
+    /// <summary>Types a fixed line of text — no single key, no click.</summary>
+    TypeText,
 }
 
 /// <summary>Which mouse button an iteration clicks with.</summary>

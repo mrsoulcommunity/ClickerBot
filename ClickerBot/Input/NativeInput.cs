@@ -31,6 +31,32 @@ internal static class NativeInput
     }
 
     /// <summary>
+    /// Types <paramref name="text"/> via Unicode input events rather than key presses, so any
+    /// character an editor could display can be typed regardless of the active keyboard
+    /// layout — no <see cref="Keys"/> value or virtual-key mapping is involved. A character
+    /// outside the Basic Multilingual Plane is already a surrogate pair in a .NET string, and
+    /// SendInput's documented handling of one Unicode event per UTF-16 code unit takes care of
+    /// it without any extra logic here.
+    /// </summary>
+    public static void TypeText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var inputs = new INPUT[text.Length * 2];
+        for (int i = 0; i < text.Length; i++)
+        {
+            ushort code = text[i];
+            inputs[i * 2] = CreateUnicodeInput(code, KEYEVENTF_UNICODE);
+            inputs[(i * 2) + 1] = CreateUnicodeInput(code, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
+        }
+
+        Send(inputs);
+    }
+
+    /// <summary>
     /// Clicks <paramref name="button"/>, moving the cursor to <paramref name="screenPoint"/>
     /// first when one is given. A null point clicks wherever the cursor already is, which
     /// leaves the user free to aim the run by hand.
@@ -82,6 +108,20 @@ internal static class NativeInput
         },
     };
 
+    private static INPUT CreateUnicodeInput(ushort code, uint flags) => new()
+    {
+        type = INPUT_KEYBOARD,
+        u = new InputUnion
+        {
+            ki = new KEYBDINPUT
+            {
+                wVk = 0,
+                wScan = code,
+                dwFlags = flags,
+            },
+        },
+    };
+
     private static INPUT CreateMouseInput(uint flags) => new()
     {
         type = INPUT_MOUSE,
@@ -104,6 +144,7 @@ internal static class NativeInput
 
     private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_UNICODE = 0x0004;
 
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;

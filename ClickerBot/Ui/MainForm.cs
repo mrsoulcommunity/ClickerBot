@@ -1,3 +1,5 @@
+using System.Media;
+
 namespace ClickerBot;
 
 internal sealed partial class MainForm : Form
@@ -15,13 +17,17 @@ internal sealed partial class MainForm : Form
     private readonly FlatButton _deleteButton = new();
     private readonly FlatButton _importButton = new();
     private readonly FlatButton _exportButton = new();
+    private readonly FlatButton _historyButton = new();
     private readonly ThemedTextBox _nameBox = new() { Font = Theme.Title };
     private readonly ThemedLabel _renameHint = UiFactory.Hint(string.Empty, 0, 0, 0);
     private readonly ThemeToggle _themeToggle = new();
 
     // Action
     private readonly Segmented _modeSelector = new();
+    private readonly ThemedLabel _keyLabel = UiFactory.Label("Key", 0, 0, 76);
     private readonly KeyCaptureBox _keyBox = new();
+    private readonly TextField _typeText = new() { MaxLength = Limits.MaxTypedTextLength };
+    private readonly ThemedLabel _keyHint = UiFactory.Hint("Esc clears", 0, 0, 72);
     private readonly Segmented _buttonSelector = new();
     private readonly ThemedCheckBox _doubleClick = UiFactory.Check("Double", 0, 0, 78);
     private readonly Segmented _targetSelector = new();
@@ -57,6 +63,8 @@ internal sealed partial class MainForm : Form
     // Window options
     private readonly ThemedCheckBox _alwaysOnTop = UiFactory.Check(string.Empty, 0, 0, 320);
     private readonly ThemedCheckBox _hideToTray = UiFactory.Check(string.Empty, 0, 0, 320);
+    private readonly ThemedCheckBox _autoStart = UiFactory.Check(string.Empty, 0, 0, 320);
+    private readonly ThemedCheckBox _failsafe = UiFactory.Check(string.Empty, 0, 0, 320);
 
     // Run
     private readonly RunPanel _runPanel = new();
@@ -69,22 +77,53 @@ internal sealed partial class MainForm : Form
 
     private ProfileStore _store = new();
     private Profile _current = new();
+    private RunHistoryStore _history = new();
     private HotkeyManager? _hotkeys;
     private CancellationTokenSource? _cancellation;
     private PauseGate? _pause;
     private Task? _run;
+    private string? _pendingStopReason;
+    private readonly bool _startMinimized;
+    private bool _shownOnce;
     private bool _loading;
     private bool _suspendSelection;
 
-    public MainForm()
+    public MainForm(bool startMinimized = false)
     {
+        _startMinimized = startMinimized;
+
         BuildUi();
         BuildTray();
         _saveTimer.Tick += (_, _) => SaveNow();
 
         // Repaints the cadence strip and the elapsed clock between progress reports, so a slow
-        // run still shows a moving second hand rather than looking frozen.
-        _tickTimer.Tick += (_, _) => _runPanel.Invalidate(invalidateChildren: true);
+        // run still shows a moving second hand rather than looking frozen. The failsafe check
+        // rides along on the same clock rather than its own timer, since both only matter
+        // while a run is in flight.
+        _tickTimer.Tick += (_, _) =>
+        {
+            _runPanel.Invalidate(invalidateChildren: true);
+            CheckFailsafe();
+        };
+    }
+
+    /// <summary>
+    /// Suppresses the very first Show the WinForms message loop performs when launched with
+    /// <c>--minimized</c>, so a Windows-startup launch goes straight to the tray instead of
+    /// flashing the window open and immediately hiding it again.
+    /// </summary>
+    protected override void SetVisibleCore(bool value)
+    {
+        if (!_shownOnce && _startMinimized)
+        {
+            _shownOnce = true;
+            base.SetVisibleCore(false);
+            _tray.Visible = true;
+            return;
+        }
+
+        _shownOnce = true;
+        base.SetVisibleCore(value);
     }
 
     private bool IsRunning => _cancellation is not null;
@@ -99,6 +138,7 @@ internal sealed partial class MainForm : Form
         _hotkeys.HotkeyPressed += OnHotkeyPressed;
 
         _store = ProfileStore.Load();
+        _history = RunHistoryStore.Load();
 
         // Apply before the first paint, then let ThemeManager keep the tree in sync.
         Theme.Apply(_store.Appearance);
@@ -107,6 +147,9 @@ internal sealed partial class MainForm : Form
         _loading = true;
         _alwaysOnTop.Checked = _store.AlwaysOnTop;
         _hideToTray.Checked = _store.HideToTrayWhileRunning;
+        _failsafe.Checked = _store.FailsafeEnabled;
+        // The registry, not a stored flag, is the source of truth — see StartupManager.
+        _autoStart.Checked = StartupManager.IsEnabled();
         _loading = false;
         TopMost = _store.AlwaysOnTop;
 
@@ -193,8 +236,37 @@ internal sealed partial class MainForm : Form
 
         _store.AlwaysOnTop = _alwaysOnTop.Checked;
         _store.HideToTrayWhileRunning = _hideToTray.Checked;
+        _store.FailsafeEnabled = _failsafe.Checked;
         TopMost = _store.AlwaysOnTop;
         ScheduleSave();
+    }
+
+    /// <summary>
+    /// Separate from <see cref="ApplyWindowOptions"/>: this one is not a profiles.json field
+    /// at all, it is a registry write, and a write that fails has to un-check the box rather
+    /// than silently claim a state that was never actually saved.
+    /// </summary>
+    private void ApplyAutoStart()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        bool requested = _autoStart.Checked;
+
+        try
+        {
+            StartupManager.SetEnabled(requested);
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException)
+        {
+            _loading = true;
+            _autoStart.Checked = !requested;
+            _loading = false;
+
+            _runPanel.SetIdleMessage("Could not change startup setting: " + ex.Message, TextRole.Danger);
+        }
     }
 
     private void UpdateTray(bool running)
@@ -261,6 +333,7 @@ internal sealed partial class MainForm : Form
         _nameBox.Text = _current.Name;
         _modeSelector.SelectedIndex = (int)_current.Mode;
         _keyBox.Key = _current.Key;
+        _typeText.Value = _current.Text;
         _buttonSelector.SelectedIndex = (int)_current.Button;
         _doubleClick.Checked = _current.DoubleClick;
         _targetSelector.SelectedIndex = (int)_current.Target;
@@ -427,6 +500,7 @@ internal sealed partial class MainForm : Form
 
         _current.Mode = (ActionMode)_modeSelector.SelectedIndex;
         _current.Key = _keyBox.Key;
+        _current.Text = _typeText.Value;
         _current.Button = (ClickButton)_buttonSelector.SelectedIndex;
         _current.DoubleClick = _doubleClick.Checked;
         _current.Target = (ClickTarget)_targetSelector.SelectedIndex;
@@ -591,28 +665,46 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        var settings = AutomationSettings.FromProfile(_current);
-        _cancellation = new CancellationTokenSource();
-        _pause = new PauseGate();
-        SaveNow();
+        BeginRun(AutomationSettings.FromProfile(_current), isTest: false);
+    }
 
-        _runPanel.BeginRun(settings.Repetitions, settings.Duration);
-        UpdateControlStates();
-        UpdateTray(running: true);
-        _tickTimer.Start();
-
-        if (_hideToTray.Checked)
+    /// <summary>
+    /// Fires exactly one iteration right now — no start delay, no repeat count, no history
+    /// entry — so a setup can be checked before committing to a real run.
+    /// </summary>
+    private void TestAction()
+    {
+        if (IsRunning)
         {
-            _tray.Visible = true;
-            Hide();
+            return;
         }
 
-        _run = RunAsync(settings, _pause, _cancellation.Token);
+        CommitPendingEdits();
+
+        if (Blocker() is string problem)
+        {
+            _runPanel.SetIdleMessage(problem, TextRole.Danger);
+            return;
+        }
+
+        var settings = AutomationSettings.FromProfile(_current) with
+        {
+            Repetitions = 1,
+            Duration = null,
+            StartDelaySeconds = 0,
+        };
+
+        BeginRun(settings, isTest: true);
     }
 
     /// <summary>The reason this profile cannot run right now, or null when it can.</summary>
     private string? Blocker()
     {
+        if (_current.UsesText && string.IsNullOrEmpty(_current.Text))
+        {
+            return "Type something first: click the text field and enter what to type";
+        }
+
         if (_current.UsesKey && _current.Key == Keys.None)
         {
             return "Pick a key first: click the key field, then press any key";
@@ -645,10 +737,35 @@ internal sealed partial class MainForm : Form
         return null;
     }
 
-    private async Task RunAsync(AutomationSettings settings, PauseGate pause, CancellationToken token)
+    private void BeginRun(AutomationSettings settings, bool isTest)
     {
+        _cancellation = new CancellationTokenSource();
+        _pause = new PauseGate();
+        SaveNow();
+
+        _runPanel.BeginRun(settings.Repetitions, settings.Duration);
+        UpdateControlStates();
+        UpdateTray(running: true);
+        _tickTimer.Start();
+
+        // A one-shot test hiding the window for a fraction of a second would just be a flicker.
+        if (!isTest && _hideToTray.Checked)
+        {
+            _tray.Visible = true;
+            Hide();
+        }
+
+        _run = RunAsync(settings, _pause, _cancellation.Token, isTest);
+    }
+
+    private async Task RunAsync(AutomationSettings settings, PauseGate pause, CancellationToken token, bool isTest)
+    {
+        DateTimeOffset startedAt = DateTimeOffset.Now;
+        RunProgress? lastReport = null;
+
         var progress = new Progress<RunProgress>(report =>
         {
+            lastReport = report;
             _runPanel.Update(report);
 
             // One tick per completed iteration, which is what gives the strip its rhythm.
@@ -664,12 +781,12 @@ internal sealed partial class MainForm : Form
         try
         {
             await AutomationRunner.RunAsync(settings, pause, progress, token);
-            outcome = "Finished";
+            outcome = isTest ? "Test complete" : "Finished";
             role = TextRole.Success;
         }
         catch (OperationCanceledException)
         {
-            outcome = "Stopped";
+            outcome = _pendingStopReason ?? "Stopped";
             role = TextRole.Secondary;
         }
         catch (Exception ex)
@@ -679,6 +796,7 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
+            _pendingStopReason = null;
             _cancellation?.Dispose();
             _cancellation = null;
             _pause = null;
@@ -686,16 +804,94 @@ internal sealed partial class MainForm : Form
             UpdateTray(running: false);
         }
 
+        // Captured before RestoreFromTray potentially activates the window: a run that finished
+        // while hidden should still count as "you were not watching", even though the very
+        // next line is about to bring the window back.
+        bool wasAway = !Visible || !ContainsFocus;
+
         if (!Visible)
         {
             RestoreFromTray();
+        }
+
+        if (wasAway)
+        {
+            SystemSounds.Asterisk.Play();
+        }
+
+        if (!isTest)
+        {
+            _history.Record(new RunHistoryEntry
+            {
+                ProfileName = _current.Name,
+                Mode = settings.Mode,
+                StartedAt = startedAt,
+                Elapsed = lastReport?.Elapsed ?? TimeSpan.Zero,
+                Iterations = lastReport?.Iteration ?? 0,
+                Outcome = outcome,
+            });
+            SaveHistory();
         }
 
         _runPanel.EndRun(outcome, role);
         UpdateControlStates();
     }
 
-    private void StopAutomation() => _cancellation?.Cancel();
+    private void SaveHistory()
+    {
+        try
+        {
+            _history.Save();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort: losing a history entry is not worth interrupting the user over.
+        }
+    }
+
+    private void StopAutomation(string? reason = null)
+    {
+        _pendingStopReason = reason;
+        _cancellation?.Cancel();
+    }
+
+    /// <summary>
+    /// Aborts a run the moment the real cursor touches a screen corner — a backstop for when
+    /// the configured Stop hotkey could not be registered. Slamming the mouse into a corner is
+    /// a deliberate gesture (both axes clamp at once only exactly there), so it will not fire
+    /// from ordinary mouse movement near an edge.
+    /// </summary>
+    private void CheckFailsafe()
+    {
+        if (!IsRunning || !_store.FailsafeEnabled)
+        {
+            return;
+        }
+
+        var bounds = SystemInformation.VirtualScreen;
+        Point p = Cursor.Position;
+
+        bool atCorner =
+            (IsAtEdge(p.X, bounds.Left) || IsAtEdge(p.X, bounds.Right - 1)) &&
+            (IsAtEdge(p.Y, bounds.Top) || IsAtEdge(p.Y, bounds.Bottom - 1));
+
+        if (!atCorner)
+        {
+            return;
+        }
+
+        // The run's own click target can legitimately sit on a corner; only a position the
+        // automation did not itself choose counts as reaching for the failsafe.
+        bool isOwnTarget = _current.UsesMouse && _current.Target == ClickTarget.FixedPoint &&
+            IsAtEdge(p.X, _current.ClickX) && IsAtEdge(p.Y, _current.ClickY);
+
+        if (!isOwnTarget)
+        {
+            StopAutomation("Stopped — the mouse touched a screen corner");
+        }
+    }
+
+    private static bool IsAtEdge(int value, int edge) => Math.Abs(value - edge) <= 1;
 
     private void TogglePause()
     {
@@ -737,8 +933,16 @@ internal sealed partial class MainForm : Form
         }
 
         // Fields that do not apply to the chosen mode are disabled rather than hidden: the
-        // card keeps its shape, so switching modes never makes the layout jump.
+        // card keeps its shape, so switching modes never makes the layout jump. The key field
+        // and the text field are the one exception — TypeText needs a whole line box rather
+        // than a key-capture field, so that row swaps which control occupies it instead.
+        _keyLabel.Text = _current.UsesText ? "Text" : "Key";
+        _keyBox.Visible = !_current.UsesText;
         _keyBox.Enabled = _current.UsesKey;
+        _keyHint.Visible = !_current.UsesText;
+        _typeText.Visible = _current.UsesText;
+        _typeText.Enabled = _current.UsesText;
+
         _buttonSelector.Enabled = _current.UsesMouse;
         _doubleClick.Enabled = _current.UsesMouse;
         _targetSelector.Enabled = _current.UsesMouse;
@@ -768,5 +972,6 @@ internal sealed partial class MainForm : Form
         };
 
         _runPanel.SetStartEnabled(!running);
+        _runPanel.SetTestEnabled(!running);
     }
 }

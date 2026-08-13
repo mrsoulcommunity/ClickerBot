@@ -18,6 +18,8 @@ internal sealed class RunPanel : Card
     private const int PanelHeight = 120;
     private const int Edge = 20;
     private const int ButtonWidth = 104;
+    private const int TestButtonWidth = 84;
+    private const int ButtonGap = 8;
     private const int ButtonHeight = 38;
     private const int ButtonTop = 62;
     private const int MeterTop = 58;
@@ -28,6 +30,7 @@ internal sealed class RunPanel : Card
     private const int ReadoutBlockWidth = ReadoutColumnWidth * ReadoutColumns;
 
     private readonly CadenceMeter _meter = new();
+    private readonly FlatButton _test = new();
     private readonly FlatButton _start = new();
     private readonly FlatButton _pause = new();
     private readonly FlatButton _stop = new();
@@ -50,16 +53,21 @@ internal sealed class RunPanel : Card
         _meter.SetBounds(Edge, MeterTop, 300, MeterHeight);
         Controls.Add(_meter);
 
+        Configure(_test, "Test", ButtonKind.Secondary);
         Configure(_start, "Start", ButtonKind.Primary);
         Configure(_pause, "Pause", ButtonKind.Secondary);
         Configure(_stop, "Stop", ButtonKind.Secondary);
 
+        _test.Click += (_, _) => TestRequested?.Invoke(this, EventArgs.Empty);
         _start.Click += (_, _) => StartRequested?.Invoke(this, EventArgs.Empty);
         _pause.Click += (_, _) => PauseRequested?.Invoke(this, EventArgs.Empty);
         _stop.Click += (_, _) => StopRequested?.Invoke(this, EventArgs.Empty);
 
-        Controls.AddRange(new Control[] { _start, _pause, _stop });
+        Controls.AddRange(new Control[] { _test, _start, _pause, _stop });
     }
+
+    /// <summary>Fires exactly one iteration of the configured action, without starting a run.</summary>
+    public event EventHandler? TestRequested;
 
     public event EventHandler? StartRequested;
 
@@ -113,6 +121,8 @@ internal sealed class RunPanel : Card
 
     public void SetStartEnabled(bool enabled) => _start.Enabled = enabled;
 
+    public void SetTestEnabled(bool enabled) => _test.Enabled = enabled;
+
     public override void ApplyTheme()
     {
         base.ApplyTheme();
@@ -142,12 +152,13 @@ internal sealed class RunPanel : Card
         int right = Width - Edge;
 
         _stop.SetBounds(right - ButtonWidth, ButtonTop, ButtonWidth, ButtonHeight);
-        _pause.SetBounds(right - (ButtonWidth * 2) - 8, ButtonTop, ButtonWidth, ButtonHeight);
-        _start.SetBounds(right - (ButtonWidth * 3) - 16, ButtonTop, ButtonWidth, ButtonHeight);
+        _pause.SetBounds(_stop.Left - ButtonGap - ButtonWidth, ButtonTop, ButtonWidth, ButtonHeight);
+        _start.SetBounds(_pause.Left - ButtonGap - ButtonWidth, ButtonTop, ButtonWidth, ButtonHeight);
+        _test.SetBounds(_start.Left - ButtonGap - TestButtonWidth, ButtonTop, TestButtonWidth, ButtonHeight);
 
         // The meter takes whatever the buttons leave, which keeps the rhythm strip as wide
         // as the window allows.
-        int meterRight = _start.Left - 24;
+        int meterRight = _test.Left - 24;
         _meter.SetBounds(Edge, MeterTop, Math.Max(80, meterRight - Edge), MeterHeight);
     }
 
@@ -290,6 +301,7 @@ internal sealed class RunPanel : Card
         _stop.Enabled = _running;
         _stop.Kind = _running ? ButtonKind.Danger : ButtonKind.Secondary;
         _start.Enabled = !_running;
+        _test.Enabled = !_running;
 
         Invalidate();
     }
