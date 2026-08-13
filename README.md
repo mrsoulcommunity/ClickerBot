@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="ClickerBot/Assets/logo.png" width="96" alt="ClickerBot logo — a capture reticle around a lit indicator dot" />
+</p>
+
 # ClickerBot
 
 A Windows desktop automation tool that repeats a key press, a mouse click, or both, at configurable intervals. Built with .NET 8 and Windows Forms — every control is custom-drawn, so the interface looks the same whether you're on light or dark, and a live rhythm strip shows a run's actual pacing instead of just a spinning counter.
@@ -11,6 +15,7 @@ A Windows desktop automation tool that repeats a key press, a mouse click, or bo
 - [Getting started](#getting-started)
 - [Usage](#usage)
 - [Appearance](#appearance)
+- [Icon and logo](#icon-and-logo)
 - [Hotkeys](#hotkeys)
 - [Profiles and data storage](#profiles-and-data-storage)
 - [Project structure](#project-structure)
@@ -120,6 +125,21 @@ Three controls are drawn from scratch instead of using the framework versions, b
 
 ---
 
+## Icon and logo
+
+The mark is a capture reticle — four corner brackets, echoing the app's own Pick-point feature — around a single indicator dot. The reticle never changes; only the dot does, exactly matching the run panel's own rule that color marks the running state and nothing else does. Idle, the dot is a flat grey. Running, it lights amber with a soft glow.
+
+| Where | State | Source |
+| --- | --- | --- |
+| The compiled `.exe`'s own file icon (Explorer, the taskbar shortcut before launch, Alt-Tab) | Always idle — nothing is running yet | `ClickerBot/Assets/AppIcon.ico`, wired in via `<ApplicationIcon>` |
+| The window's title bar and taskbar icon | Idle / running, live | Drawn at runtime by `AppIcon.cs` |
+| The notification-area icon while hidden to tray | Idle / running, live | Same `AppIcon.cs` |
+| This README | The lit mark | `ClickerBot/Assets/logo.png` |
+
+The runtime copy exists because the compiled icon can't relight itself — nothing is running when Explorer shows it. `AppIcon.cs` draws the identical mark with GDI+ instead of loading a raster asset, so it can swap the dot's color the instant a run starts or stops, the same way every other themed control in the app repaints instead of being replaced.
+
+---
+
 ## Hotkeys
 
 | Hotkey | Action | Configurable |
@@ -158,6 +178,10 @@ The app was previously called ClickerApp. If nothing is found at the path above,
 ```
 .
 ├── ClickerBot/
+│   ├── Assets/
+│   │   ├── AppIcon.ico            # Compiled .exe's file icon (idle state, multi-resolution)
+│   │   ├── logo.png               # README art (lit state)
+│   │   └── logo-idle.png          # README art (idle state)
 │   ├── Automation/
 │   │   ├── AutomationRunner.cs   # The async action loop: mode-aware, pausable, time-or-count bounded
 │   │   └── RunProgress.cs        # Run phase snapshot + the pause gate the UI holds

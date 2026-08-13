@@ -12,6 +12,11 @@
     <!-- Matches the manifest. Left unset, ApplicationConfiguration.Initialize() asks for
          SystemAware, which contradicts the PerMonitorV2 the manifest already applied. -->
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- The compiled .exe's own icon — what Explorer, the taskbar pin, and Alt-Tab show
+         before the process is even running. AppIcon.cs draws the same mark live at
+         runtime, because that copy also needs to relight when a run starts; this one
+         can't, since nothing is running yet, so it's baked from the idle (unlit) state. -->
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>
