@@ -2,34 +2,49 @@
   <img src="ClickerBot/Assets/logo.png" width="96" alt="ClickerBot logo — a capture reticle around a lit indicator dot" />
 </p>
 
-# ClickerBot
+<h1 align="center">ClickerBot</h1>
 
-A Windows desktop automation tool that repeats a key press, a mouse click, or both, at configurable intervals. Built with .NET 8 and Windows Forms — every control is custom-drawn, so the interface looks the same whether you're on light or dark, and a live rhythm strip shows a run's actual pacing instead of just a spinning counter.
+<p align="center">A Windows desktop automation tool that repeats a key press, a mouse click, or both — precisely, and on your terms.</p>
 
---- 
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows&logoColor=white">
+  <img alt=".NET" src="https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet&logoColor=white">
+  <img alt="UI" src="https://img.shields.io/badge/UI-Windows%20Forms-B45309?style=flat-square">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-18181B?style=flat-square">
+</p>
 
-## Table of contents
+Built with .NET 8 and Windows Forms — every control is custom-drawn, so the interface looks the same whether you're on light or dark, and a live rhythm strip shows a run's actual pacing instead of just a spinning counter. 📱 It now also opens a page on your phone, so you can start and stop a run without walking back to the desk.
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Getting started](#getting-started)
-- [Usage](#usage)
-- [Appearance](#appearance)
-- [Icon and logo](#icon-and-logo)
-- [Hotkeys](#hotkeys)
-- [Profiles and data storage](#profiles-and-data-storage)
-- [Run history](#run-history)
-- [Starting with Windows](#starting-with-windows)
-- [Project structure](#project-structure)
-- [How it works](#how-it-works)
-- [Building a standalone release](#building-a-standalone-release)
-- [Troubleshooting](#troubleshooting)
-- [Responsible use](#responsible-use)
-- [License](#license)
+<p align="center">
+  <img src="ClickerBot/Assets/screenshots/app-light.png" width="49%" alt="ClickerBot in light mode, idle, configured for a key-and-click run" />
+  <img src="ClickerBot/Assets/screenshots/app-dark-running.png" width="49%" alt="ClickerBot in dark mode, mid-run — lit indicator lamp, live cadence strip, red Stop button" />
+</p>
 
 ---
 
-## Features
+## Table of contents
+
+- [✨ Features](#-features)
+- [🖥️ Requirements](#️-requirements)
+- [🚀 Getting started](#-getting-started)
+- [🎯 Usage](#-usage)
+- [📱 Mobile control](#-mobile-control)
+- [🎨 Appearance](#-appearance)
+- [🔷 Icon and logo](#-icon-and-logo)
+- [⌨️ Hotkeys](#️-hotkeys)
+- [🗂️ Profiles and data storage](#️-profiles-and-data-storage)
+- [🕓 Run history](#-run-history)
+- [🪟 Starting with Windows](#-starting-with-windows)
+- [📁 Project structure](#-project-structure)
+- [⚙️ How it works](#️-how-it-works)
+- [📦 Building a standalone release](#-building-a-standalone-release)
+- [🛠️ Troubleshooting](#️-troubleshooting)
+- [⚠️ Responsible use](#️-responsible-use)
+- [📄 License](#-license)
+
+---
+
+## ✨ Features
 
 | Feature | Description |
 | --- | --- |
@@ -45,6 +60,7 @@ A Windows desktop automation tool that repeats a key press, a mouse click, or bo
 | **Test button** | Fires exactly one iteration right now — no start delay, no repeat count, nothing logged to history — so you can check a key, a click point, or typed text before committing to a full run. |
 | **Pause and resume** | Hold a run in place without losing its iteration count or elapsed time, then continue exactly where it left off. |
 | **Failsafe corner-abort** | Slamming the real cursor into any corner of the screen aborts a run immediately — a backstop for when a Stop hotkey couldn't be registered. On by default; turn it off in the *Window* card if a run legitimately needs to click near a corner. |
+| **📱 Mobile control** | Enable it in the *Remote* card and ClickerBot serves a phone-friendly page on your LAN with a live status readout and a Start/Stop button — no cables, no companion app. PIN-protected. See [Mobile control](#-mobile-control). |
 | **Live cadence strip** | A running strip of ticks, one per completed iteration, laid out on a real time axis — an even comb for a fixed delay, a ragged one for a random range. It's the fastest way to tell a run is behaving the way you configured it. |
 | **Position capture** | Click **Pick** — or press its hotkey from anywhere — to store the current cursor position as the click target. |
 | **Four global hotkeys** | Start, Pause, Stop, and Pick point are all registered system-wide and work while other applications have focus. All four are configurable per profile and must be distinct from each other and from the automated key. |
@@ -56,21 +72,21 @@ A Windows desktop automation tool that repeats a key press, a mouse click, or bo
 | **Start with Windows** | Launches ClickerBot, minimized to the tray, when you sign in — toggled through the same per-user Run key Windows itself uses, no installer needed. |
 | **Sound when you're not looking** | Plays a system sound when a run ends while the window is hidden or unfocused — silent if you're already watching it finish. |
 | **Auto-save** | Changes are persisted to disk automatically a moment after you make them — nothing to remember to save. |
-| **Light & dark themes** | One click on the header switch, with an animated transition. The title bar follows too. See [Appearance](#appearance). |
+| **Light & dark themes** | One click on the header switch, with an animated transition. The title bar follows too. See [Appearance](#-appearance). |
 | **High-DPI aware** | Per-monitor V2 DPI awareness, so the UI stays sharp on scaled and mixed-DPI displays. |
 
 ---
 
-## Requirements
+## 🖥️ Requirements
 
 - **Windows 10 or Windows 11**
 - **[.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)** — required to build. Only the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) is needed to run an already-built binary.
 
-The app runs with normal user rights (`asInvoker`). See [Troubleshooting](#troubleshooting) if you need to drive an elevated window.
+The app runs with normal user rights (`asInvoker`). See [Troubleshooting](#️-troubleshooting) if you need to drive an elevated window.
 
 ---
 
-## Getting started
+## 🚀 Getting started
 
 ### The easy way
 
@@ -95,7 +111,7 @@ dotnet run --project ClickerBot/ClickerBot.csproj -c Release
 
 ---
 
-## Usage
+## 🎯 Usage
 
 1. **Choose a mode** in the *Action* card: **Both** (key + click), **Key** (key only), **Click** (click only), or **Text** (types a line, no key or click). The fields that don't apply grey out.
 2. **Pick a key, or type text** (whichever the mode uses). Click the **Key** field and press the key you want automated — or, in Text mode, type the line you want it to enter each iteration.
@@ -107,18 +123,38 @@ dotnet run --project ClickerBot/ClickerBot.csproj -c Release
    - **Start delay** — an optional countdown before the first action, to give you time to click into the target window.
 5. **Choose how the run ends** in the *Repeat* card: a **Count** of iterations, a **Duration**, or **Until stopped**.
 6. **Try it once first.** The run bar's **Test** button fires exactly one iteration immediately, with no start delay and nothing recorded to history — the fastest way to confirm the key, click point, or typed text is right before committing to a real run.
-7. **Press Start** — or your Start hotkey. The settings panel locks while a run is in progress; the cadence strip and readouts in the run bar update live.
+7. **Press Start** — or your Start hotkey, or the Start button on your phone. The settings panel locks while a run is in progress; the cadence strip and readouts in the run bar update live.
 8. **Pause and resume** with the run bar's Pause button or your Pause hotkey — the iteration count and elapsed time hold in place and continue from there.
-9. **Press Stop** — or your Stop hotkey, or move the mouse into a screen corner — to cancel at any time.
+9. **Press Stop** — or your Stop hotkey, or your phone, or move the mouse into a screen corner — to cancel at any time.
 
-The switch in the top-right corner flips between light and dark at any time; see [Appearance](#appearance). Past runs are one click away in **History**, at the bottom of the sidebar.
+The switch in the top-right corner flips between light and dark at any time; see [Appearance](#-appearance). Past runs are one click away in **History**, at the bottom of the sidebar.
 
 > **Note**
 > The automated key cannot be one of the four hotkeys (this doesn't apply to Text mode, which has no key). Synthesized key presses trigger registered hotkeys just like real ones, so the run would stop itself, restart itself, pause itself, or quietly move the click target out from under itself. The app blocks these combinations and tells you which one you hit.
 
 ---
 
-## Appearance
+## 📱 Mobile control
+
+Tick **Enable mobile control** in the *Remote* card and ClickerBot starts a small web server of its own — no separate install, no account, no cloud in between. It hosts a single page built for a phone: a big lamp that mirrors the desktop's own idle/running indicator, live iteration and elapsed-time readouts, and one button that reads **Start** or **Stop** depending on what's currently true.
+
+<p align="center">
+  <img src="ClickerBot/Assets/screenshots/remote-lock.png" width="32%" alt="Mobile control page — PIN entry screen" />
+  <img src="ClickerBot/Assets/screenshots/remote-idle.png" width="32%" alt="Mobile control page — idle, ready to start" />
+  <img src="ClickerBot/Assets/screenshots/remote-running.png" width="32%" alt="Mobile control page — a run in progress, lamp lit" />
+</p>
+
+**To connect:** tick the checkbox. A URL and a 6-digit PIN appear directly under it — click that line to copy the URL to your clipboard. Open the URL in your phone's browser (both devices need to be on the same Wi-Fi network), enter the PIN once, and you're in; the page remembers it for next time.
+
+**What it can and can't do:** the page can start a run, stop it, and watch it happen — the same profile and settings you last configured on the desktop. It can't change any setting, switch profiles, or configure a new run; for that you're still at the keyboard. That split is deliberate: the phone is a remote for a run you already set up, not a second cockpit.
+
+**On security, honestly:** the PIN is regenerated every time the server starts, and it gates every action that changes state — starting, stopping, even confirming the PIN itself. That's enough to stop a random device on the same Wi-Fi from touching it by accident, but it's LAN-toy security, not a hardened login: there's no rate limiting or account lockout, and the read-only status page doesn't require the PIN at all. Treat it like any other local-network convenience feature — fine for your own home or office Wi-Fi, not something to expose past your router.
+
+**No firewall prompts, no admin rights.** ClickerBot binds the server to `127.0.0.1` plus each of your machine's real LAN addresses individually, rather than to a wildcard address — the wildcard is what actually requires elevated permissions on Windows, so this feature needs none.
+
+---
+
+## 🎨 Appearance
 
 The switch in the top-right corner of the header toggles between the light and dark themes. The change is immediate and animated, and it covers the whole window — including the title bar, which is repainted through the Desktop Window Manager rather than left as a light strip above a dark app.
 
@@ -134,9 +170,9 @@ Three controls are drawn from scratch instead of using the framework versions, b
 
 ---
 
-## Icon and logo
+## 🔷 Icon and logo
 
-The mark is a capture reticle — four corner brackets, echoing the app's own Pick-point feature — around a single indicator dot. The reticle never changes; only the dot does, exactly matching the run panel's own rule that color marks the running state and nothing else does. Idle, the dot is a flat grey. Running, it lights amber with a soft glow.
+The mark is a capture reticle — four corner brackets, echoing the app's own Pick-point feature — around a single indicator dot. The reticle never changes; only the dot does, exactly matching the run panel's own rule that color marks the running state and nothing else does. Idle, the dot is a flat grey. Running, it lights amber with a soft glow. The mobile page's own hero lamp is the same mark, so a run looks like the same run whichever screen you're watching it from.
 
 | Where | State | Source |
 | --- | --- | --- |
@@ -149,7 +185,7 @@ The runtime copy exists because the compiled icon can't relight itself — nothi
 
 ---
 
-## Hotkeys
+## ⌨️ Hotkeys
 
 | Hotkey | Action | Configurable |
 | --- | --- | --- |
@@ -162,13 +198,13 @@ Hotkeys are registered globally through the Win32 `RegisterHotKey` API, so they 
 
 All four hotkeys must be distinct from each other, and from the automated key when the current mode uses one.
 
-**If a hotkey can't be registered, the failsafe still works.** Moving the real mouse cursor into any corner of the screen aborts a run immediately, whether or not the Stop hotkey is available — see [Features](#features). It's on by default and can be turned off per your preference in the *Window* card.
+**If a hotkey can't be registered, the failsafe still works.** Moving the real mouse cursor into any corner of the screen aborts a run immediately, whether or not the Stop hotkey is available — see [Features](#-features). It's on by default and can be turned off per your preference in the *Window* card.
 
 ---
 
-## Profiles and data storage
+## 🗂️ Profiles and data storage
 
-Profiles hold every configurable value: the mode, key or typed text, mouse button, click target and scatter, both delay settings, the start delay, the repeat mode, and all four hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme and the window options (always-on-top, hide-to-tray, the failsafe toggle) are stored alongside them but apply to the whole application rather than to a single profile.
+Profiles hold every configurable value: the mode, key or typed text, mouse button, click target and scatter, both delay settings, the start delay, the repeat mode, and all four hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme and the window options (always-on-top, hide-to-tray, the failsafe toggle, mobile control) are stored alongside them but apply to the whole application rather than to a single profile.
 
 Everything is stored as indented JSON at:
 
@@ -184,7 +220,7 @@ The app was previously called ClickerApp. If nothing is found at the path above,
 
 ---
 
-## Run history
+## 🕓 Run history
 
 The **History** button at the bottom of the sidebar opens a list of the last 50 runs: which profile, which mode, when it started, how long it ran, how many iterations it completed, and how it ended — Finished, Stopped, a failsafe abort, or an error. A one-shot **Test** doesn't get an entry; it isn't a run.
 
@@ -192,7 +228,7 @@ History is stored separately from your profiles, at `%APPDATA%\ClickerBot\histor
 
 ---
 
-## Starting with Windows
+## 🪟 Starting with Windows
 
 **Start ClickerBot when Windows starts**, in the *Window* card, adds ClickerBot to your per-user startup programs — the same `HKCU\...\CurrentVersion\Run` registry key Windows' own Settings app manages, so no installer or scheduled task is involved and nothing needs administrator rights.
 
@@ -202,7 +238,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 
 ---
 
-## Project structure
+## 📁 Project structure
 
 ```
 .
@@ -210,7 +246,8 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   ├── Assets/
 │   │   ├── AppIcon.ico            # Compiled .exe's file icon (idle state, multi-resolution)
 │   │   ├── logo.png               # README art (lit state)
-│   │   └── logo-idle.png          # README art (idle state)
+│   │   ├── logo-idle.png          # README art (idle state)
+│   │   └── screenshots/           # README screenshots (app + mobile control)
 │   ├── Automation/
 │   │   ├── AutomationRunner.cs   # The async action loop: mode-aware, pausable, time-or-count bounded
 │   │   └── RunProgress.cs        # Run phase snapshot + the pause gate the UI holds
@@ -226,6 +263,9 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   ├── Profile.cs            # One named configuration
 │   │   ├── ProfileStore.cs       # JSON load/save, plus import/export
 │   │   └── RunHistory.cs         # A finished run's record, and its JSON load/save
+│   ├── Remote/
+│   │   ├── RemoteControlServer.cs   # Local HTTP server: routing, PIN auth, the mobile page itself
+│   │   └── RemoteStatusPayload.cs   # The status snapshot served to the phone
 │   ├── Ui/
 │   │   ├── Controls/
 │   │   │   ├── CadenceMeter.cs     # Live per-iteration rhythm strip
@@ -252,7 +292,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   │   ├── ThemeMode.cs        # Light / Dark
 │   │   │   └── WindowChrome.cs     # Dark title bar + system preference
 │   │   ├── AppIcon.cs             # Drawn window/tray icon, amber when a run is active
-│   │   ├── MainForm.cs            # Wiring: profiles, settings, hotkeys, run control, tray
+│   │   ├── MainForm.cs            # Wiring: profiles, settings, hotkeys, run control, tray, remote server
 │   │   ├── MainForm.Layout.cs     # Where every control is placed
 │   │   └── UiFactory.cs           # Small control factory helpers
 │   ├── app.manifest              # DPI awareness, execution level, OS support
@@ -267,7 +307,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 
 ---
 
-## How it works
+## ⚙️ How it works
 
 `AutomationRunner.RunAsync` drives the loop while the UI thread stays responsive. Each iteration is one call to `PerformIterationAsync`, which switches on the mode:
 
@@ -291,11 +331,13 @@ Each wait calls `DelaySetting.Next()`, so a randomized delay produces a differen
 
 **The failsafe** is checked outside `AutomationRunner` entirely, on the same 100ms UI timer that already repaints the cadence strip: if the real cursor is within a pixel of any corner of `SystemInformation.VirtualScreen`, the run is cancelled with a reason that overrides the ordinary "Stopped" message — unless that corner happens to be the profile's own configured click point, since a run is allowed to legitimately park the cursor there between clicks.
 
+**Mobile control** runs on `System.Net.HttpListener`, bound to `127.0.0.1` and each of the machine's real LAN IPv4 addresses individually — never a wildcard prefix, which is what would require administrator rights on Windows. `MainForm` hands it three callbacks (`GetStatus`, `RequestStart`, `RequestStop`); since the listener answers requests on its own background threads, every one of those callbacks marshals back onto the UI thread — `Invoke` for the status read, which needs a return value, `BeginInvoke` for start/stop, which don't. The PIN is regenerated with `RandomNumberGenerator` each time the server starts and compared in constant time, so a failed guess can't be timed to narrow down the right one.
+
 Extended keys (arrows, `Insert`, `Delete`, `Home`, `End`, `Page Up`/`Page Down`, numpad `/`, right `Ctrl`/`Alt`, and others) are flagged with `KEYEVENTF_EXTENDEDKEY` so target applications receive them correctly.
 
 ---
 
-## Building a standalone release
+## 📦 Building a standalone release
 
 To produce a single self-contained executable that runs without the .NET runtime installed:
 
@@ -313,7 +355,7 @@ dotnet publish ClickerBot/ClickerBot.csproj -c Release -r win-x64 --self-contain
 
 ---
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 **A hotkey does nothing, and the status bar mentions another app.**
 Windows grants a global hotkey to the first application that asks for it. Another running program owns that key — choose a different one in the *Hotkeys* card.
@@ -336,14 +378,20 @@ The profile's own click point is a screen corner (or close to one), and somethin
 **Starting with Windows is checked, but ClickerBot didn't launch at sign-in.**
 Some third-party startup managers and enterprise policies clear entries from the per-user Run key. Re-check the box, or add ClickerBot through your startup manager pointing at the ClickerBot executable with a `--minimized` argument.
 
+**My phone can't reach the mobile control page.**
+Both devices need to be on the same Wi-Fi network — the server only binds to your machine's real LAN addresses, not the public internet. Check the URL shown under the checkbox in the *Remote* card was copied correctly, and that Windows Firewall isn't blocking ClickerBot on a network you've marked Public (accept the firewall prompt, or allow it manually for Private/Domain networks).
+
+**The mobile page asks for the PIN again after it worked before.**
+The PIN is regenerated every time the server starts — including every time you toggle *Enable mobile control* off and back on, or restart ClickerBot. Read the new one off the *Remote* card.
+
 ---
 
-## Responsible use
+## ⚠️ Responsible use
 
 This tool synthesizes real keyboard and mouse input at the operating-system level. Use it for legitimate automation — repetitive data entry, testing your own software, accessibility assistance, and similar tasks. Many online games and web services prohibit automated input in their terms of service, and using this tool against them may get your account suspended. You are responsible for how you use it.
 
 ---
 
-## License
+## 📄 License
 
 Released under the [MIT License](LICENSE). You are free to use, modify, and distribute this software, including commercially, provided the copyright notice and license text are retained. The software is provided as-is, without warranty of any kind.

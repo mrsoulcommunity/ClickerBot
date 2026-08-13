@@ -66,6 +66,11 @@ internal sealed partial class MainForm : Form
     private readonly ThemedCheckBox _autoStart = UiFactory.Check(string.Empty, 0, 0, 320);
     private readonly ThemedCheckBox _failsafe = UiFactory.Check(string.Empty, 0, 0, 320);
 
+    // Remote (phone) control
+    private readonly ThemedCheckBox _remoteEnabled = UiFactory.Check(string.Empty, 0, 0, 320);
+    private readonly ThemedLabel _remoteStatus = UiFactory.Label(string.Empty, 0, 0, 0, Theme.MonoSmall, TextRole.Secondary);
+    private readonly RemoteControlServer _remote = new();
+
     // Run
     private readonly RunPanel _runPanel = new();
     private readonly List<Card> _cards = new();
@@ -83,6 +88,9 @@ internal sealed partial class MainForm : Form
     private PauseGate? _pause;
     private Task? _run;
     private string? _pendingStopReason;
+    private RunProgress? _lastProgress;
+    private long? _remoteTarget;
+    private string _remoteMessage = "Ready";
     private readonly bool _startMinimized;
     private bool _shownOnce;
     private bool _loading;
@@ -105,6 +113,12 @@ internal sealed partial class MainForm : Form
             _runPanel.Invalidate(invalidateChildren: true);
             CheckFailsafe();
         };
+
+        // These three are invoked from the HTTP listener's own background thread, so every
+        // path through them has to reach the UI thread before touching anything here.
+        _remote.GetStatus = BuildRemoteStatus;
+        _remote.RequestStart = () => BeginInvoke(new Action(StartAutomation));
+        _remote.RequestStop = () => BeginInvoke(new Action(() => StopAutomation()));
     }
 
     /// <summary>
@@ -150,8 +164,16 @@ internal sealed partial class MainForm : Form
         _failsafe.Checked = _store.FailsafeEnabled;
         // The registry, not a stored flag, is the source of truth — see StartupManager.
         _autoStart.Checked = StartupManager.IsEnabled();
+        _remoteEnabled.Checked = _store.RemoteControlEnabled;
         _loading = false;
         TopMost = _store.AlwaysOnTop;
+
+        if (_store.RemoteControlEnabled)
+        {
+            StartRemoteControl();
+        }
+
+        UpdateRemoteStatusLabel();
 
         ReloadProfileList(_store.SelectedIndex);
         _runPanel.SetIdleMessage("Ready");
@@ -197,6 +219,7 @@ internal sealed partial class MainForm : Form
             _hotkeys = null;
             _cancellation?.Dispose();
             _cancellation = null;
+            _remote.Dispose();
             AppIcon.Dispose();
         }
 
@@ -267,6 +290,101 @@ internal sealed partial class MainForm : Form
 
             _runPanel.SetIdleMessage("Could not change startup setting: " + ex.Message, TextRole.Danger);
         }
+    }
+
+    // --- Remote (phone) control -------------------------------------------
+
+    private void ApplyRemoteControl()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _store.RemoteControlEnabled = _remoteEnabled.Checked;
+        ScheduleSave();
+
+        if (_remoteEnabled.Checked)
+        {
+            StartRemoteControl();
+        }
+        else
+        {
+            _remote.Stop();
+        }
+
+        UpdateRemoteStatusLabel();
+    }
+
+    /// <summary>
+    /// Starts the server, reverting the checkbox and the saved setting if it fails — a checkbox
+    /// that stays checked after the thing it turns on failed to turn on is worse than one that
+    /// visibly refuses. Shared by the checkbox handler and the auto-start-on-launch path.
+    /// </summary>
+    private void StartRemoteControl()
+    {
+        string? error = _remote.Start();
+        if (error is null)
+        {
+            return;
+        }
+
+        _loading = true;
+        _remoteEnabled.Checked = false;
+        _loading = false;
+
+        _store.RemoteControlEnabled = false;
+        ScheduleSave();
+
+        _runPanel.SetIdleMessage(error, TextRole.Danger);
+    }
+
+    private void UpdateRemoteStatusLabel()
+    {
+        if (!_remote.IsRunning)
+        {
+            _remoteStatus.Text = "Off";
+            _remoteStatus.Cursor = Cursors.Default;
+            return;
+        }
+
+        string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{RemoteControlServer.Port}/";
+        _remoteStatus.Text = $"{url}   PIN {_remote.Pin}";
+        _remoteStatus.Cursor = Cursors.Hand;
+    }
+
+    private void CopyRemoteUrl()
+    {
+        if (!_remote.IsRunning)
+        {
+            return;
+        }
+
+        string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{RemoteControlServer.Port}/";
+        Clipboard.SetText(url);
+        _runPanel.SetIdleMessage("Copied the remote address to the clipboard");
+    }
+
+    /// <summary>
+    /// Built on demand for the phone's status poll. Called from the HTTP listener's background
+    /// thread, so every field it touches is read on the UI thread first.
+    /// </summary>
+    private RemoteStatusPayload BuildRemoteStatus()
+    {
+        if (InvokeRequired)
+        {
+            return (RemoteStatusPayload)Invoke(new Func<RemoteStatusPayload>(BuildRemoteStatus));
+        }
+
+        bool running = IsRunning;
+        return new RemoteStatusPayload(
+            running,
+            _current.Name,
+            ActionModeNames.Describe(_current.Mode),
+            _lastProgress?.Iteration ?? 0,
+            running ? _remoteTarget : null,
+            _lastProgress?.Elapsed.TotalSeconds ?? 0,
+            running ? string.Empty : _remoteMessage);
     }
 
     private void UpdateTray(bool running)
@@ -662,6 +780,7 @@ internal sealed partial class MainForm : Form
         if (Blocker() is string problem)
         {
             _runPanel.SetIdleMessage(problem, TextRole.Danger);
+            _remoteMessage = problem;
             return;
         }
 
@@ -743,6 +862,9 @@ internal sealed partial class MainForm : Form
         _pause = new PauseGate();
         SaveNow();
 
+        _lastProgress = null;
+        _remoteTarget = settings.Repetitions;
+
         _runPanel.BeginRun(settings.Repetitions, settings.Duration);
         UpdateControlStates();
         UpdateTray(running: true);
@@ -761,11 +883,10 @@ internal sealed partial class MainForm : Form
     private async Task RunAsync(AutomationSettings settings, PauseGate pause, CancellationToken token, bool isTest)
     {
         DateTimeOffset startedAt = DateTimeOffset.Now;
-        RunProgress? lastReport = null;
 
         var progress = new Progress<RunProgress>(report =>
         {
-            lastReport = report;
+            _lastProgress = report;
             _runPanel.Update(report);
 
             // One tick per completed iteration, which is what gives the strip its rhythm.
@@ -819,6 +940,8 @@ internal sealed partial class MainForm : Form
             SystemSounds.Asterisk.Play();
         }
 
+        _remoteMessage = outcome;
+
         if (!isTest)
         {
             _history.Record(new RunHistoryEntry
@@ -826,8 +949,8 @@ internal sealed partial class MainForm : Form
                 ProfileName = _current.Name,
                 Mode = settings.Mode,
                 StartedAt = startedAt,
-                Elapsed = lastReport?.Elapsed ?? TimeSpan.Zero,
-                Iterations = lastReport?.Iteration ?? 0,
+                Elapsed = _lastProgress?.Elapsed ?? TimeSpan.Zero,
+                Iterations = _lastProgress?.Iteration ?? 0,
                 Outcome = outcome,
             });
             SaveHistory();

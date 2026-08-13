@@ -16,6 +16,19 @@ internal enum ActionMode
     TypeText,
 }
 
+/// <summary>Human-friendly names for <see cref="ActionMode"/>, shared by the history list and the remote status feed.</summary>
+internal static class ActionModeNames
+{
+    public static string Describe(ActionMode mode) => mode switch
+    {
+        ActionMode.KeyAndClick => "Key + click",
+        ActionMode.KeyOnly => "Key only",
+        ActionMode.ClickOnly => "Click only",
+        ActionMode.TypeText => "Type text",
+        _ => mode.ToString(),
+    };
+}
+
 /// <summary>Which mouse button an iteration clicks with.</summary>
 internal enum ClickButton
 {

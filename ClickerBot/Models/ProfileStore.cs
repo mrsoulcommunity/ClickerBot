@@ -38,6 +38,12 @@ internal sealed class ProfileStore
     /// </summary>
     public bool FailsafeEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Whether the phone remote server should be running. Off by default — unlike the
+    /// failsafe, this opens a network port, so it is opt-in rather than opt-out.
+    /// </summary>
+    public bool RemoteControlEnabled { get; set; }
+
     [JsonIgnore]
     public static string FilePath { get; } = PathUnder("ClickerBot");
 

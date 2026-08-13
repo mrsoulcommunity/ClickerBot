@@ -11,7 +11,7 @@ namespace ClickerBot;
 internal sealed partial class MainForm
 {
     private const int WindowWidth = 1060;
-    private const int WindowHeight = 842;
+    private const int WindowHeight = 850;
 
     private const int RailWidth = 252;
     private const int ColumnLeft = 276;
@@ -44,6 +44,7 @@ internal sealed partial class MainForm
         BuildRepeatCard();
         BuildHotkeyCard();
         BuildWindowCard();
+        BuildRemoteCard();
         BuildRunPanel();
     }
 
@@ -262,9 +263,31 @@ internal sealed partial class MainForm
         card.Controls.Add(_failsafe);
     }
 
+    /// <summary>
+    /// Not built through <see cref="AddCard"/>: everything else in the left column locks while
+    /// a run is active, but this card is exactly how you would stop or check on a run started
+    /// from a phone, so it stays live on purpose. Sits in the gap Hotkeys leaves below it.
+    /// </summary>
+    private void BuildRemoteCard()
+    {
+        var card = new Card { Title = "REMOTE" };
+        card.SetBounds(ColumnLeft, 610, CardWidth, 84);
+        Controls.Add(card);
+        _cards.Add(card);
+
+        _remoteEnabled.SetBounds(20, 40, 334, 24);
+        _remoteEnabled.Text = "Enable mobile control";
+        _remoteEnabled.CheckedChanged += (_, _) => ApplyRemoteControl();
+        card.Controls.Add(_remoteEnabled);
+
+        _remoteStatus.SetBounds(20, 64, 334, 18);
+        _remoteStatus.Click += (_, _) => CopyRemoteUrl();
+        card.Controls.Add(_remoteStatus);
+    }
+
     private void BuildRunPanel()
     {
-        _runPanel.SetBounds(ColumnLeft, 702, (CardWidth * 2) + Gutter, 120);
+        _runPanel.SetBounds(ColumnLeft, 710, (CardWidth * 2) + Gutter, 120);
         _runPanel.TestRequested += (_, _) => TestAction();
         _runPanel.StartRequested += (_, _) => StartAutomation();
         _runPanel.PauseRequested += (_, _) => TogglePause();

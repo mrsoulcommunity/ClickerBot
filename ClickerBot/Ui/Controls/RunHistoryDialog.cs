@@ -58,7 +58,7 @@ internal sealed class HistoryListBox : ListBox, IThemedControl
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
         string detail = $"{entry.StartedAt.LocalDateTime:g} · {FormatElapsed(entry.Elapsed)} · " +
-            $"{entry.Iterations:N0} iteration{(entry.Iterations == 1 ? "" : "s")} · {DescribeMode(entry.Mode)}";
+            $"{entry.Iterations:N0} iteration{(entry.Iterations == 1 ? "" : "s")} · {ActionModeNames.Describe(entry.Mode)}";
         var detailArea = new Rectangle(row.X, row.Y + 30, row.Width, 18);
         TextRenderer.DrawText(g, detail, Theme.Small, detailArea, Theme.TextSecondary,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
@@ -75,15 +75,6 @@ internal sealed class HistoryListBox : ListBox, IThemedControl
         : value.TotalMinutes >= 1
             ? $"{(int)value.TotalMinutes}m {value.Seconds}s"
             : $"{value.Seconds}s";
-
-    private static string DescribeMode(ActionMode mode) => mode switch
-    {
-        ActionMode.KeyAndClick => "Key + click",
-        ActionMode.KeyOnly => "Key only",
-        ActionMode.ClickOnly => "Click only",
-        ActionMode.TypeText => "Type text",
-        _ => mode.ToString(),
-    };
 }
 
 /// <summary>
