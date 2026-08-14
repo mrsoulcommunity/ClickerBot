@@ -8,9 +8,10 @@ namespace ClickerBot;
 /// through global low-level hooks — so it sees input aimed at any window, not just this one.
 ///
 /// Purely an observer: the hook procedures always call <see cref="CallNextHookEx"/> and never
-/// swallow an event, so recording never blocks the very input it is watching. A <see cref="Wait"/>
-/// step is inserted ahead of each captured action sized to the real time since the previous one,
-/// so playing the recording back reproduces the pacing it was recorded at, not just the actions.
+/// swallow an event, so recording never blocks the very input it is watching. A
+/// <see cref="StepKind.Wait"/> step is inserted ahead of each captured action sized to the real
+/// time since the previous one, so playing the recording back reproduces the pacing it was
+/// recorded at, not just the actions.
 /// </summary>
 internal sealed class MacroRecorder : IDisposable
 {
@@ -39,8 +40,13 @@ internal sealed class MacroRecorder : IDisposable
     private IntPtr _mouseHook;
     private readonly Stopwatch _clock = new();
     private long _lastEventMs;
-    private Point? _mouseDownAt;
-    private ClickButton _mouseDownButton;
+
+    // Keyed by button rather than a single "the current press": holding one button and
+    // pressing a second before releasing the first is ordinary mouse use (a chord, or just an
+    // overlapping double-check), and tracking only one in-flight press at a time would have the
+    // second button's down silently overwrite the first's, dropping both clicks' worth of
+    // recording once each finally comes up.
+    private readonly Dictionary<ClickButton, Point> _downPoints = new();
 
     public MacroRecorder()
     {
@@ -70,7 +76,7 @@ internal sealed class MacroRecorder : IDisposable
 
         _clock.Restart();
         _lastEventMs = 0;
-        _mouseDownAt = null;
+        _downPoints.Clear();
     }
 
     public void Stop()
@@ -88,7 +94,7 @@ internal sealed class MacroRecorder : IDisposable
         }
 
         _clock.Stop();
-        _mouseDownAt = null;
+        _downPoints.Clear();
     }
 
     public void Dispose() => Stop();
@@ -117,9 +123,9 @@ internal sealed class MacroRecorder : IDisposable
 
             switch (wParam.ToInt32())
             {
-                case WmLButtonDown: _mouseDownAt = point; _mouseDownButton = ClickButton.Left; break;
-                case WmRButtonDown: _mouseDownAt = point; _mouseDownButton = ClickButton.Right; break;
-                case WmMButtonDown: _mouseDownAt = point; _mouseDownButton = ClickButton.Middle; break;
+                case WmLButtonDown: _downPoints[ClickButton.Left] = point; break;
+                case WmRButtonDown: _downPoints[ClickButton.Right] = point; break;
+                case WmMButtonDown: _downPoints[ClickButton.Middle] = point; break;
 
                 case WmLButtonUp: EndPress(point, ClickButton.Left); break;
                 case WmRButtonUp: EndPress(point, ClickButton.Right); break;
@@ -132,13 +138,10 @@ internal sealed class MacroRecorder : IDisposable
 
     private void EndPress(Point point, ClickButton button)
     {
-        if (_mouseDownAt is not { } down || button != _mouseDownButton)
+        if (!_downPoints.Remove(button, out Point down))
         {
-            _mouseDownAt = null;
             return;
         }
-
-        _mouseDownAt = null;
 
         double dx = point.X - down.X;
         double dy = point.Y - down.Y;

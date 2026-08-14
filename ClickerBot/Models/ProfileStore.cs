@@ -183,10 +183,19 @@ internal sealed class ProfileStore
     }
 
     /// <summary>A first run starts on whatever appearance Windows itself is set to.</summary>
-    private static ProfileStore CreateDefault() => new()
+    private static ProfileStore CreateDefault()
     {
-        Profiles = { new Profile { Name = Loc.DefaultProfileName } },
-        SelectedIndex = 0,
-        Appearance = WindowChrome.SystemPreference(),
-    };
+        var profile = new Profile { Name = Loc.DefaultProfileName };
+        // Sanitize() is what normally normalizes a profile, but there is no file to sanitize
+        // on a first run — without this, the very first thing a new install shows is an empty
+        // step list instead of the starting sequence Normalize builds from the defaults.
+        profile.Normalize();
+
+        return new()
+        {
+            Profiles = { profile },
+            SelectedIndex = 0,
+            Appearance = WindowChrome.SystemPreference(),
+        };
+    }
 }

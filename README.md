@@ -16,8 +16,8 @@
 Built with .NET 8 and Windows Forms — every control is custom-drawn, so the interface looks the same whether you're on light or dark, and a live rhythm strip shows a run's actual pacing instead of just a spinning counter. 📱 It now also opens a page on your phone, so you can start and stop a run without walking back to the desk.
 
 <p align="center">
-  <img src="ClickerBot/Assets/screenshots/app-light.png" width="49%" alt="ClickerBot in light mode, idle, configured for a key-and-click run" />
-  <img src="ClickerBot/Assets/screenshots/app-dark-running.png" width="49%" alt="ClickerBot in dark mode, mid-run — lit indicator lamp, live cadence strip, red Stop button" />
+  <img src="ClickerBot/Assets/screenshots/app-light.png" width="49%" alt="ClickerBot in light mode, idle, showing a step sequence and the step editor" />
+  <img src="ClickerBot/Assets/screenshots/app-dark-running.png" width="49%" alt="ClickerBot in dark mode, mid-run — lit indicator lamp, live cadence strip, red Stop button, window targeting active" />
 </p>
 
 ---
@@ -187,7 +187,7 @@ Three controls are drawn from scratch instead of using the framework versions, b
 The **EN / فا** switch next to the theme toggle translates the whole window — every card, label, hint, dialog, and status message — between English and Persian. The mobile control page translates with it: open it after switching to Persian and it arrives right-to-left, with its own layout mirrored rather than just its words swapped.
 
 <p align="center">
-  <img src="ClickerBot/Assets/screenshots/app-persian.png" width="70%" alt="ClickerBot's full window in Persian, right-aligned labels throughout" />
+  <img src="ClickerBot/Assets/screenshots/app-persian.png" width="70%" alt="ClickerBot's full window translated to Persian, with the same left-to-right layout as English" />
 </p>
 
 <p align="center">

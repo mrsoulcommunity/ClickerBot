@@ -37,7 +37,7 @@ internal sealed class MacroStep
     /// <summary>Click only: a fixed point, or wherever the cursor already is.</summary>
     public ClickTarget Target { get; set; } = ClickTarget.FixedPoint;
 
-    /// <summary>Click's target point, or WaitForPixelColor's sample point.</summary>
+    /// <summary>Click's target point, Drag's "from" point, or WaitForPixelColor's sample point.</summary>
     public int X { get; set; }
 
     public int Y { get; set; }

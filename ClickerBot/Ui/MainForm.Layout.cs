@@ -209,7 +209,21 @@ internal sealed partial class MainForm
 
         _stepDelayEditor.ValueChanged += (_, _) => SyncStepFieldsToModel();
 
-        _stepColorSwatch.BorderStyle = BorderStyle.FixedSingle;
+        // A plain Panel has no themed frame of its own — BorderStyle.FixedSingle would draw in
+        // a fixed system color that stays the same regardless of which palette is active. Drawn
+        // by hand instead, in Theme.Border, so it matches every field beside it in both themes;
+        // ThemeManager invalidates every control on a switch (see ApplyTo), themed or not, so
+        // this repaints itself automatically without needing IThemedControl.
+        _stepColorSwatch.BorderStyle = BorderStyle.None;
+        _stepColorSwatch.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var bounds = new Rectangle(0, 0, _stepColorSwatch.Width - 1, _stepColorSwatch.Height - 1);
+            using var path = Theme.RoundedRect(bounds, 6);
+            using var pen = new Pen(Theme.Border);
+            e.Graphics.DrawPath(pen, path);
+        };
+
         Configure(_stepCaptureColorButton, ButtonKind.Secondary, 0, 0, 90, 32);
         _stepCaptureColorButton.Click += (_, _) => CaptureStepColor();
 

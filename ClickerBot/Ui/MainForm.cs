@@ -169,6 +169,7 @@ internal sealed partial class MainForm : Form
     private bool _suspendStepSelection;
     private MacroStep? _selectedStep;
     private int _captureWindowCountdown;
+    private CancellationTokenSource? _stepTestCancellation;
 
     public MainForm(bool startMinimized = false)
     {
@@ -228,7 +229,12 @@ internal sealed partial class MainForm : Form
     private bool IsRunning => _cancellation is not null;
 
     /// <summary>Either a run or a recording is in progress — the two moments Start/Test have to stay locked out for.</summary>
-    private bool IsBusy => IsRunning || _recorder.IsRecording;
+    /// <summary>
+    /// A real run, a recording, or a single step's test are all "something is already using the
+    /// mouse and keyboard" — Start and Test have to stay locked out for any of them, or a real
+    /// run could fire while a lingering step test is still moving the cursor around underneath it.
+    /// </summary>
+    private bool IsBusy => IsRunning || _recorder.IsRecording || _stepTestCancellation is not null;
 
     // --- Lifecycle ------------------------------------------------------
 
@@ -307,6 +313,7 @@ internal sealed partial class MainForm : Form
         }
 
         _recorder.Stop();
+        _stepTestCancellation?.Cancel();
         SaveNow();
         _tray.Visible = false;
         _hotkeys?.Dispose();
@@ -472,12 +479,19 @@ internal sealed partial class MainForm : Form
     {
         if (!_remote.IsRunning)
         {
+            // "Off" is a word, not a measurement — the URL and PIN below are what actually
+            // benefit from a monospace face. Left on Theme.MonoSmall, a Latin-only face like
+            // Consolas has no glyphs for Persian script and forces the renderer to fall back
+            // per character, which breaks the letters' joined forms instead of just changing
+            // their look. Loc.RemoteOff is the one text this label ever shows that isn't a URL.
+            _remoteStatus.Font = Theme.Small;
             _remoteStatus.Text = Loc.RemoteOff;
             _remoteStatus.Cursor = Cursors.Default;
             return;
         }
 
         string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{RemoteControlServer.Port}/";
+        _remoteStatus.Font = Theme.MonoSmall;
         _remoteStatus.Text = $"{url}   PIN {_remote.Pin}";
         _remoteStatus.Cursor = Cursors.Hand;
     }
@@ -583,7 +597,7 @@ internal sealed partial class MainForm : Form
 
         _stepDetailCard.Title = Loc.StepDetailCardTitle;
         _noStepSelectedLabel.Text = Loc.NoStepSelected;
-        _testStepButton.Text = Loc.TestStep;
+        _testStepButton.Text = _stepTestCancellation is not null ? Loc.Cancel : Loc.TestStep;
 
         ApplyKindSelectorItems();
 
@@ -673,7 +687,12 @@ internal sealed partial class MainForm : Form
         // nothing to clamp to. The app is never without a profile, so restore that first.
         if (_store.Profiles.Count == 0)
         {
-            _store.Profiles.Add(new Profile { Name = Loc.DefaultProfileName });
+            var profile = new Profile { Name = Loc.DefaultProfileName };
+            // A profile built in memory never goes through ProfileStore.Sanitize, which is the
+            // only other place that normalizes one — without this call it would sit in the UI
+            // with an empty step list instead of the starting sequence Normalize builds for it.
+            profile.Normalize();
+            _store.Profiles.Add(profile);
         }
 
         _suspendSelection = true;
@@ -737,6 +756,9 @@ internal sealed partial class MainForm : Form
     private void CreateProfile()
     {
         var profile = new Profile { Name = _store.CreateUniqueName(Loc.NewProfile) };
+        // See the matching comment in ReloadProfileList: a profile built here has to be
+        // normalized by hand, or "+ New profile" would start you on an empty step list.
+        profile.Normalize();
         _store.Profiles.Add(profile);
         ReloadProfileList(_store.Profiles.Count - 1);
         _nameBox.Focus();
@@ -917,7 +939,9 @@ internal sealed partial class MainForm : Form
         _noStepSelectedLabel.Visible = !hasSelection;
         _kindSelector.Visible = hasSelection;
         _testStepButton.Visible = hasSelection;
-        _testStepButton.Enabled = !running && hasSelection;
+        // Stays enabled through its own test regardless of "running" — that's what lets the
+        // Cancel it turns into while testing actually be clickable. See TestStep.
+        _testStepButton.Enabled = _stepTestCancellation is not null || (!running && hasSelection);
 
         if (_selectedStep is not { } step)
         {
@@ -1125,8 +1149,20 @@ internal sealed partial class MainForm : Form
         ScheduleSave();
     }
 
+    /// <summary>
+    /// Starts a step's test, or — if one is already running — cancels it. A
+    /// <see cref="StepKind.WaitForPixelColor"/> step tested with its timeout set to "wait
+    /// forever" would otherwise have no way to stop from the UI at all, since it isn't part of
+    /// a real run and so isn't covered by <see cref="StopAutomation"/> or the failsafe.
+    /// </summary>
     private void TestStep()
     {
+        if (_stepTestCancellation is { } running)
+        {
+            running.Cancel();
+            return;
+        }
+
         if (IsBusy || _selectedStep is not { } step)
         {
             return;
@@ -1138,19 +1174,37 @@ internal sealed partial class MainForm : Form
 
     private async Task RunStepOnceAsync(MacroStep step)
     {
-        _testStepButton.Enabled = false;
+        var cancellation = new CancellationTokenSource();
+        _stepTestCancellation = cancellation;
+        _testStepButton.Text = Loc.Cancel;
 
         try
         {
-            await AutomationRunner.RunStepOnceAsync(step, CancellationToken.None);
+            await AutomationRunner.RunStepOnceAsync(step, cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the button above, or by the form closing — nothing more to report.
         }
         catch (Exception ex)
         {
-            _runPanel.SetIdleMessage(ex.Message, TextRole.Danger);
+            // A real run in flight at the same time would take priority for the message line,
+            // and a disposed form has nothing left to report to.
+            if (!IsRunning && !IsDisposed)
+            {
+                _runPanel.SetIdleMessage(ex.Message, TextRole.Danger);
+            }
         }
         finally
         {
-            _testStepButton.Enabled = !IsBusy && _selectedStep is not null;
+            _stepTestCancellation = null;
+            cancellation.Dispose();
+
+            if (!IsDisposed)
+            {
+                _testStepButton.Text = Loc.TestStep;
+                _testStepButton.Enabled = !IsBusy && _selectedStep is not null;
+            }
         }
     }
 
