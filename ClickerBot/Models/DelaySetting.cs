@@ -50,6 +50,4 @@ internal sealed class DelaySetting
             (Min, Max) = (Max, Min);
         }
     }
-
-    public string Describe() => UseRandom ? $"{Math.Min(Min, Max)}–{Math.Max(Min, Max)} ms" : $"{Fixed} ms";
 }

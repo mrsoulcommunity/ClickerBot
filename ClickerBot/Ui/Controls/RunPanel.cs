@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 
 namespace ClickerBot;
@@ -39,6 +40,15 @@ internal sealed class RunPanel : Card, ILocalizedControl
     private bool _running;
     private long _iteration;
     private TimeSpan _elapsed;
+
+    /// <summary>
+    /// When <see cref="_elapsed"/> was last set. The runner reports progress once per
+    /// iteration, so between two reports — which a long delay can stretch to minutes — that
+    /// figure is the only thing the clock has, and it would sit frozen. The repaint timer
+    /// already ticks ten times a second; this is what gives it something new to draw.
+    /// </summary>
+    private long _elapsedAt = Stopwatch.GetTimestamp();
+
     private int _countdown;
     private long? _target;
     private TimeSpan? _window;
@@ -84,6 +94,7 @@ internal sealed class RunPanel : Card, ILocalizedControl
         _window = window;
         _iteration = 0;
         _elapsed = TimeSpan.Zero;
+        _elapsedAt = Stopwatch.GetTimestamp();
         _countdown = 0;
         _running = true;
         _phase = RunPhase.Running;
@@ -104,9 +115,44 @@ internal sealed class RunPanel : Card, ILocalizedControl
         _phase = progress.Phase;
         _iteration = progress.Iteration;
         _elapsed = progress.Elapsed;
+        _elapsedAt = Stopwatch.GetTimestamp();
         _countdown = progress.CountdownSeconds;
         Refresh(idleMessage: null);
     }
+
+    /// <summary>
+    /// Moves between running and paused straight away, leaving the counters alone.
+    ///
+    /// The run reports its own phase, but only once it reaches the top of the next iteration —
+    /// on the far side of a delay that can be minutes long — so a pause would otherwise sit
+    /// there looking like it had not registered. Reporting a whole <see cref="RunProgress"/>
+    /// from here instead is what this replaces, and that carried an iteration count and an
+    /// elapsed time the caller does not actually know, blanking both readouts until the run
+    /// caught up and refilled them.
+    /// </summary>
+    public void SetPhase(RunPhase phase)
+    {
+        if (!_running || _phase == phase)
+        {
+            return;
+        }
+
+        // Bank the time shown since the last report before the clock stops, so pausing settles
+        // on the figure that was on screen rather than snapping backwards to the last report.
+        _elapsed = LiveElapsed();
+        _elapsedAt = Stopwatch.GetTimestamp();
+        _phase = phase;
+        Refresh(idleMessage: null);
+    }
+
+    /// <summary>
+    /// The elapsed figure to draw: the last one reported, carried forward to now while the run
+    /// is actually running. A paused or finished run holds still, which is the truth in both
+    /// cases — the runner's own clock stops with it.
+    /// </summary>
+    private TimeSpan LiveElapsed() => _running && _phase == RunPhase.Running
+        ? _elapsed + Stopwatch.GetElapsedTime(_elapsedAt)
+        : _elapsed;
 
     /// <summary>Sets the resting message shown when nothing is running.</summary>
     public void SetIdleMessage(string message, TextRole role = TextRole.Secondary)
@@ -202,14 +248,15 @@ internal sealed class RunPanel : Card, ILocalizedControl
         int top = ReadoutTop;
         int right = Width - Edge;
 
-        string rate = _elapsed.TotalSeconds > 0.25 && _iteration > 0
-            ? (_iteration / _elapsed.TotalSeconds).ToString("0.0") + "/s"
+        TimeSpan elapsed = LiveElapsed();
+        string rate = elapsed.TotalSeconds > 0.25 && _iteration > 0
+            ? (_iteration / elapsed.TotalSeconds).ToString("0.0") + "/s"
             : "—";
 
         var columns = new (string Label, string Value)[]
         {
             (Loc.IterationsCaption, _target is { } total ? $"{_iteration:N0} / {total:N0}" : $"{_iteration:N0}"),
-            (Loc.ElapsedCaption, Format(_elapsed)),
+            (Loc.ElapsedCaption, Format(elapsed)),
             (Loc.RateCaption, rate),
         };
 
@@ -272,7 +319,7 @@ internal sealed class RunPanel : Card, ILocalizedControl
 
         if (_window is { } window && window.TotalMilliseconds > 0)
         {
-            return (float)(_elapsed.TotalMilliseconds / window.TotalMilliseconds);
+            return (float)(LiveElapsed().TotalMilliseconds / window.TotalMilliseconds);
         }
 
         return -1f;

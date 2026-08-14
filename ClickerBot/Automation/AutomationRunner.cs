@@ -34,9 +34,6 @@ internal sealed record AutomationSettings(
         profile.Repeat == RepeatMode.Duration
             ? TimeSpan.FromMinutes(Math.Max(1, profile.DurationMinutes))
             : null);
-
-    /// <summary>The total an iteration counter is working towards, for the progress bar.</summary>
-    public bool HasEnd => Repetitions is not null || Duration is not null;
 }
 
 /// <summary>
@@ -105,14 +102,6 @@ internal static class AutomationRunner
 
         clock.Stop();
     }
-
-    /// <summary>
-    /// Performs exactly one iteration's action — the same code <see cref="RunAsync"/> repeats
-    /// — so a "test this" button can fire it once without any of the looping, pausing, or
-    /// stop-condition machinery around it.
-    /// </summary>
-    public static Task RunOnceAsync(AutomationSettings settings, CancellationToken cancellationToken) =>
-        PerformIterationAsync(settings, Random.Shared, cancellationToken);
 
     private static async Task PerformIterationAsync(
         AutomationSettings settings, Random random, CancellationToken cancellationToken)

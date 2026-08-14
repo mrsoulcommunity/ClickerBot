@@ -115,6 +115,7 @@ internal sealed partial class MainForm : Form
     private string? _remoteMessage;
     private readonly bool _startMinimized;
     private bool _shownOnce;
+    private bool _initialized;
     private bool _loading;
     private bool _suspendSelection;
 
@@ -155,6 +156,14 @@ internal sealed partial class MainForm : Form
             _shownOnce = true;
             base.SetVisibleCore(false);
             _tray.Visible = true;
+
+            // Suppressing that first Show also means the window is never created, and OnLoad
+            // only runs once it is — so without this, a sign-in launch would sit in the tray
+            // with no profiles loaded, no hotkeys registered and the phone server switched off
+            // until the window was opened by hand, which is the one thing this launch mode is
+            // meant to avoid. Setup does not actually need the window on screen, only a handle,
+            // and asking for one here is what creates it.
+            EnsureInitialized();
             return;
         }
 
@@ -169,6 +178,23 @@ internal sealed partial class MainForm : Form
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
+        EnsureInitialized();
+    }
+
+    /// <summary>
+    /// Loads the saved state and brings up everything that outlives a single window: hotkeys,
+    /// the theme and language, and the phone server. Idempotent, because the two paths that
+    /// need it — an ordinary launch reaching OnLoad, and a <c>--minimized</c> one that never
+    /// does — can both run first, and on an ordinary launch both run.
+    /// </summary>
+    private void EnsureInitialized()
+    {
+        if (_initialized)
+        {
+            return;
+        }
+
+        _initialized = true;
 
         _hotkeys = new HotkeyManager(this);
         _hotkeys.HotkeyPressed += OnHotkeyPressed;
@@ -255,7 +281,13 @@ internal sealed partial class MainForm : Form
     private void BuildTray()
     {
         _tray.Icon = AppIcon.Idle;
+        _tray.Text = Loc.TrayIdle;
         _tray.DoubleClick += (_, _) => RestoreFromTray();
+
+        // Built here as well as from ApplyLanguage, so the icon is never live without a menu
+        // behind it: a --minimized launch shows the tray icon from SetVisibleCore, which runs
+        // ahead of the form's load.
+        RebuildTrayMenu();
     }
 
     /// <summary>
@@ -1146,11 +1178,12 @@ internal sealed partial class MainForm : Form
         _pause?.Toggle();
 
         // The gate reports itself through the runner, but a run sitting inside a long delay
-        // will not reach that report for a while. Reflect it now so the button never lies.
+        // will not reach that report for a while. Reflect it now so the button never lies —
+        // phase only, since the iteration count and elapsed time are the run's to report and
+        // this side does not know them.
         if (_pause is { } gate)
         {
-            _runPanel.Update(new RunProgress(
-                gate.IsPaused ? RunPhase.Paused : RunPhase.Running, 0, TimeSpan.Zero, 0));
+            _runPanel.SetPhase(gate.IsPaused ? RunPhase.Paused : RunPhase.Running);
         }
     }
 

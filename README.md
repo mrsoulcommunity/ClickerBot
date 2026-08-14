@@ -341,7 +341,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 - **Click** — click, with no key involved.
 - **Text** — synthesize one `SendInput` Unicode event pair per character, bypassing virtual-key mapping entirely so any character your keyboard layout can't reach still types correctly.
 
-A click moves the cursor first, unless the target is the live cursor position, then synthesizes the configured button — twice, for a double-click. A **scatter** radius, if set, offsets the point by a random amount inside that radius on every click, sampled evenly across the disc rather than bunched toward the center. The **Test** button calls the very same `PerformIterationAsync` directly, once, outside the loop — there is exactly one place that knows how to perform an iteration, and both the real run and the one-shot test call it.
+A click moves the cursor first, unless the target is the live cursor position, then synthesizes the configured button — twice, for a double-click. A **scatter** radius, if set, offsets the point by a random amount inside that radius on every click, sampled evenly across the disc rather than bunched toward the center. The **Test** button runs the very same loop with its repeat count pinned to one and its start delay to zero, so it reaches the identical `PerformIterationAsync` — there is exactly one place that knows how to perform an iteration, and both the real run and the one-shot test go through it. Only the bookkeeping differs: a test records no history entry.
 
 Around that iteration, the loop:
 

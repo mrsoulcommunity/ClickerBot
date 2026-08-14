@@ -66,8 +66,6 @@ internal static class Loc
 
     // --- App-wide ----------------------------------------------------------
 
-    public static string AppTitle => "ClickerBot";
-
     public static string RenameHint => T("Type in the name above to rename", "برای تغییر نام، همین بالا بنویسید");
 
     public static string Cancel => T("Cancel", "لغو");
@@ -75,8 +73,6 @@ internal static class Loc
     public static string SwitchToLightMode => T("Switch to light mode", "رفتن به حالت روشن");
 
     public static string SwitchToDarkMode => T("Switch to dark mode", "رفتن به حالت تاریک");
-
-    public static string SwitchLanguage => T("Switch language", "تغییر زبان");
 
     // --- Sidebar / profiles --------------------------------------------------
 
