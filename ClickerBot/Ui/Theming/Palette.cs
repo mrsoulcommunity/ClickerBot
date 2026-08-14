@@ -78,7 +78,10 @@ internal sealed class Palette
         Danger = Hex("#B91C1C"),
         DangerSoft = Hex("#FEF2F2"),
         Success = Hex("#15803D"),
-        Disabled = Hex("#A1A1AA"),
+        // Every setting card is disabled for the duration of a run, so this is the color most
+        // of the window's text takes at the one moment there is something worth reading. Held
+        // above 3:1 against DisabledSurface for that reason — muted, still legible.
+        Disabled = Hex("#8A8A95"),
         DisabledSurface = Hex("#F4F4F5"),
     };
 
@@ -104,7 +107,10 @@ internal sealed class Palette
         Danger = Hex("#F87171"),
         DangerSoft = Hex("#2C1A1C"),
         Success = Hex("#4ADE80"),
-        Disabled = Hex("#52525B"),
+        // See the light palette's note. The old value sat at 2.1:1 on this near-black surface,
+        // which read as unlit rather than muted — the numbers were there and could not be made
+        // out. Lifted to just under 4:1.
+        Disabled = Hex("#7A7A85"),
         DisabledSurface = Hex("#1E1E22"),
     };
 

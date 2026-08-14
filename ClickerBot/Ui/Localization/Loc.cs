@@ -37,7 +37,32 @@ internal static class Loc
             ? Language.Persian
             : Language.English;
 
-    private static string T(string english, string persian) => Current == Language.Persian ? persian : english;
+    // A right-to-left embedding. The window's own layout stays left-to-right in both languages,
+    // which means Windows resolves each Persian string against a left-to-right base direction —
+    // and under that base direction the bidirectional algorithm puts a trailing full stop at the
+    // wrong end of the sentence, and moves a comma that sits next to an embedded Latin word
+    // ("…ویندوز، ClickerBot…") across it. The text is correct and the ordering is not.
+    //
+    // Wrapping each translated string in RLE…PDF gives it its own right-to-left base direction
+    // without touching the layout around it, which is exactly the scope of the problem. Doing it
+    // here rather than at each control means it applies everywhere at once — owner-drawn text,
+    // stock labels, the tray menu — and stays correct for strings assembled later, since the
+    // pair is balanced and safe to concatenate.
+    private const string Rle = "‫";
+    private const string Pdf = "‬";
+
+    private static string T(string english, string persian) =>
+        Current == Language.Persian ? Rle + persian + Pdf : english;
+
+    /// <summary>
+    /// A translation that is stored as data rather than only displayed — a profile's name ends
+    /// up in profiles.json — so it is returned bare. Invisible ordering marks belong in a label,
+    /// not in a name the user typed alongside and can export. Every string routed through here
+    /// is plain Persian with no trailing punctuation and no embedded Latin, which is precisely
+    /// the case the bidirectional algorithm already handles correctly without help.
+    /// </summary>
+    private static string Name(string english, string persian) =>
+        Current == Language.Persian ? persian : english;
 
     // --- App-wide ----------------------------------------------------------
 
@@ -57,7 +82,8 @@ internal static class Loc
 
     public static string ProfilesCaption => T("PROFILES", "پروفایل‌ها");
 
-    public static string NewProfile => T("New profile", "پروفایل جدید");
+    /// <summary>Both the button's label and the name a newly created profile is given.</summary>
+    public static string NewProfile => Name("New profile", "پروفایل جدید");
 
     public static string Duplicate => T("Duplicate", "کپی");
 
@@ -69,12 +95,12 @@ internal static class Loc
 
     public static string History => T("History", "تاریخچه");
 
-    public static string DefaultProfileName => T("Default", "پیش‌فرض");
+    public static string DefaultProfileName => Name("Default", "پیش‌فرض");
 
-    public static string UntitledProfileName => T("Untitled", "بی‌نام");
+    public static string UntitledProfileName => Name("Untitled", "بی‌نام");
 
     /// <summary>Appended to a profile's own name to build its duplicate's default name.</summary>
-    public static string CopySuffix => T(" copy", " کپی");
+    public static string CopySuffix => Name(" copy", " کپی");
 
     // --- Action card -----------------------------------------------------
 
@@ -269,9 +295,11 @@ internal static class Loc
 
     public static string ExportDialogTitle => T("Export profiles", "اکسپورت پروفایل‌ها");
 
-    public static string ProfilesFilterName => T("ClickerBot profiles", "پروفایل‌های ClickerBot");
+    // Bare, like the profile names: these are spliced into an OpenFileDialog's pipe-delimited
+    // Filter string and rendered by the system dialog, which does its own right-to-left handling.
+    public static string ProfilesFilterName => Name("ClickerBot profiles", "پروفایل‌های ClickerBot");
 
-    public static string AllFilesFilterName => T("All files", "همهٔ فایل‌ها");
+    public static string AllFilesFilterName => Name("All files", "همهٔ فایل‌ها");
 
     public static string NoProfilesInFile =>
         T("That file does not contain any profiles", "آن فایل هیچ پروفایلی ندارد");

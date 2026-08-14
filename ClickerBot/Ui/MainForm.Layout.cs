@@ -103,11 +103,10 @@ internal sealed partial class MainForm
         _nameBox.Leave += NameBox_Leave;
         Controls.Add(_nameBox);
 
-        // Fixed at the right edge of its own text regardless of language: it sits beside the
-        // toggles it is aligned with, not with a paragraph it is the start of.
+        // Right-aligned so it ends against the toggles it sits beside, rather than trailing off
+        // into the gap between itself and the name box.
         _renameHint.SetBounds(ColumnLeft + 424, 24, 202, 20);
         _renameHint.TextAlign = ContentAlignment.MiddleRight;
-        _renameHint.FollowsReadingDirection = false;
         Controls.Add(_renameHint);
 
         // Not translated relative to each other, the way no language switch ever translates

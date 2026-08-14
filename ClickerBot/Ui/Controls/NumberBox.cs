@@ -98,14 +98,28 @@ internal sealed class NumberBox : Control, IThemedControl
 
     public void ApplyTheme()
     {
-        _input.BackColor = Enabled ? Theme.Field : Theme.DisabledSurface;
-        _input.ForeColor = Enabled ? Theme.TextPrimary : Theme.Disabled;
+        _input.BackColor = Theme.Field;
+        _input.ForeColor = Theme.TextPrimary;
         Invalidate();
     }
 
+    /// <summary>
+    /// Windows paints a disabled <see cref="TextBox"/> itself, in system colors, ignoring
+    /// whatever BackColor and ForeColor were assigned — which on a dark palette leaves the
+    /// number effectively unreadable. So a disabled field hides the text box entirely and
+    /// <see cref="OnPaint"/> draws the value instead, in palette colors we control.
+    ///
+    /// This matters far beyond the odd greyed-out field: every setting card is disabled for
+    /// the duration of a run, so without it every number in the window goes unreadable at
+    /// exactly the moment there is something worth reading.
+    ///
+    /// <see cref="Control.Enabled"/> reports the effective state — false when any ancestor is
+    /// disabled — and OnEnabledChanged reaches children when a parent's state changes, so a
+    /// card disabling itself lands here the same way this field disabling itself does.
+    /// </summary>
     protected override void OnEnabledChanged(EventArgs e)
     {
-        _input.Enabled = Enabled;
+        _input.Visible = Enabled;
         ApplyTheme();
         base.OnEnabledChanged(e);
     }
@@ -180,6 +194,16 @@ internal sealed class NumberBox : Control, IThemedControl
         using (var pen = new Pen(!Enabled ? Theme.Border : focused ? Theme.Accent : Theme.Border))
         {
             g.DrawPath(pen, path);
+        }
+
+        // Stands in for the hidden text box — see OnEnabledChanged.
+        if (!Enabled)
+        {
+            TextRenderer.DrawText(g, _input.Text, _input.Font,
+                new Rectangle(StepperWidth, 0, Math.Max(10, Width - (StepperWidth * 2)), Height),
+                Theme.Disabled,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
 
         DrawStepper(g, new Rectangle(1, 1, StepperWidth, Height - 3), minus: true);

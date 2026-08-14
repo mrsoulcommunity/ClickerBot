@@ -121,7 +121,6 @@ internal sealed class RunHistoryDialog : Form
             Text = Loc.RunHistoryEmpty,
             Role = TextRole.Secondary,
             TextAlign = ContentAlignment.MiddleCenter,
-            FollowsReadingDirection = false,
         };
         _empty.SetBounds(24, 64, ClientSize.Width - 48, ClientSize.Height - 140);
         Controls.Add(_empty);

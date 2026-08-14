@@ -54,14 +54,19 @@ internal sealed class TextField : Control, IThemedControl
 
     public void ApplyTheme()
     {
-        _input.BackColor = Enabled ? Theme.Field : Theme.DisabledSurface;
-        _input.ForeColor = Enabled ? Theme.TextPrimary : Theme.Disabled;
+        _input.BackColor = Theme.Field;
+        _input.ForeColor = Theme.TextPrimary;
         Invalidate();
     }
 
+    /// <summary>
+    /// Hides the text box while disabled and lets <see cref="OnPaint"/> draw the value in its
+    /// place, for the same reason <see cref="NumberBox.OnEnabledChanged"/> does: Windows paints
+    /// a disabled text box in system colors and ignores the ones assigned to it.
+    /// </summary>
     protected override void OnEnabledChanged(EventArgs e)
     {
-        _input.Enabled = Enabled;
+        _input.Visible = Enabled;
         ApplyTheme();
         base.OnEnabledChanged(e);
     }
@@ -95,6 +100,15 @@ internal sealed class TextField : Control, IThemedControl
         using (var pen = new Pen(!Enabled ? Theme.Border : _input.Focused ? Theme.Accent : Theme.Border))
         {
             g.DrawPath(pen, path);
+        }
+
+        // Stands in for the hidden text box — see OnEnabledChanged.
+        if (!Enabled)
+        {
+            TextRenderer.DrawText(g, _input.Text, _input.Font,
+                new Rectangle(Inset, 0, Math.Max(10, Width - (Inset * 2)), Height),
+                Theme.Disabled,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
     }
 

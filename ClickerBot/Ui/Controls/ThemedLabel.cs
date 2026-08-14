@@ -43,31 +43,21 @@ internal sealed class ThemedLabel : Label, IThemedControl
         }
     }
 
-    /// <summary>
-    /// Whether this label's alignment should follow the reading direction of the current
-    /// language. On by default. A label given its own fixed alignment — a centered dash, a
-    /// centered empty-state message — sets this false once, so <see cref="ApplyTheme"/> never
-    /// overwrites a choice that had nothing to do with reading direction in the first place.
-    /// </summary>
-    public bool FollowsReadingDirection { get; set; } = true;
+    // Alignment is deliberately left alone by the theme and language passes. An earlier
+    // revision right-aligned every label in Persian, which reads well for a label sitting
+    // immediately left of its field but breaks every other kind: a hint describing the control
+    // below it, or a card-wide caption, slid to the far right edge and detached from the thing
+    // it referred to. The window keeps its left-to-right geometry in both languages — see Loc's
+    // class comment — so the labels keep the alignment that geometry was built around, and each
+    // label that wants something else (a centered dash, a centered empty state) still just sets
+    // it once at construction.
 
-    public void ApplyTheme()
+    public void ApplyTheme() => ForeColor = _role switch
     {
-        ForeColor = _role switch
-        {
-            TextRole.Secondary => Theme.TextSecondary,
-            TextRole.Accent => Theme.Accent,
-            TextRole.Success => Theme.Success,
-            TextRole.Danger => Theme.Danger,
-            _ => Theme.TextPrimary,
-        };
-
-        // The rest of the window keeps its left-to-right geometry in Persian too — see Loc's
-        // class comment — but a plain label is stock-rendered, not owner-drawn, so nudging its
-        // text to the edge its language actually reads from costs nothing and is worth doing.
-        if (FollowsReadingDirection)
-        {
-            TextAlign = Loc.IsPersian ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft;
-        }
-    }
+        TextRole.Secondary => Theme.TextSecondary,
+        TextRole.Accent => Theme.Accent,
+        TextRole.Success => Theme.Success,
+        TextRole.Danger => Theme.Danger,
+        _ => Theme.TextPrimary,
+    };
 }

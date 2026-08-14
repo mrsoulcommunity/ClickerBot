@@ -26,7 +26,6 @@ internal sealed class DelayEditor : Panel, IThemedControl, ILocalizedControl
         Font = Theme.Base;
 
         _dash.TextAlign = ContentAlignment.MiddleCenter;
-        _dash.FollowsReadingDirection = false;
         _dash.Height = 32;
         _unit.Height = 32;
 
