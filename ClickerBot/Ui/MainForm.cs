@@ -37,7 +37,7 @@ internal sealed partial class MainForm : Form
     // Step detail
     private readonly Card _stepDetailCard = new();
     private readonly ThemedLabel _noStepSelectedLabel = UiFactory.Hint(string.Empty, 0, 0, 0);
-    private readonly ThemedComboBox _kindSelector = new();
+    private readonly Dropdown _kindSelector = new();
     private readonly FlatButton _testStepButton = new();
 
     // Step detail — shared row controls, repositioned per StepKind by ShowStepFields.
@@ -335,6 +335,8 @@ internal sealed partial class MainForm : Form
             _hotkeys = null;
             _cancellation?.Dispose();
             _cancellation = null;
+            // A step test is not tied to _run, so nothing else unwinds it on the way out.
+            _stepTestCancellation?.Cancel();
             _recorder.Dispose();
             _remote.Dispose();
             AppIcon.Dispose();
@@ -367,7 +369,17 @@ internal sealed partial class MainForm : Form
     /// </summary>
     private void RebuildTrayMenu()
     {
-        var menu = new ContextMenuStrip();
+        var menu = new ContextMenuStrip
+        {
+            // The tray menu is outside the form's control tree, so ThemeManager's walk never
+            // reaches it — the renderer reads the palette at paint time instead, which is what
+            // keeps it in step with a theme switch it is never told about.
+            Renderer = new ThemedMenuRenderer(),
+            ShowImageMargin = false,
+            BackColor = Theme.Surface,
+            ForeColor = Theme.TextPrimary,
+        };
+
         menu.Items.Add(Loc.TrayShow, null, (_, _) => RestoreFromTray());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Loc.TrayStopRun, null, (_, _) => StopAutomation());
@@ -665,17 +677,16 @@ internal sealed partial class MainForm : Form
     }
 
     /// <summary>
-    /// Rebuilds the kind combo's items from <see cref="Loc.StepKindName"/> without disturbing
-    /// which one is selected: the enum's declaration order never changes, so the index a
-    /// language switch would otherwise clobber is exactly the one to restore afterwards.
+    /// Rebuilds the kind selector's labels from <see cref="Loc.StepKindName"/> without
+    /// disturbing which one is selected: the enum's declaration order never changes, so the
+    /// index a language switch would otherwise clobber is exactly the one to restore after.
     /// </summary>
     private void ApplyKindSelectorItems()
     {
         _loading = true;
         int previous = _kindSelector.SelectedIndex;
-        _kindSelector.Items.Clear();
-        _kindSelector.Items.AddRange(Enum.GetValues<StepKind>().Select(k => (object)Loc.StepKindName(k)).ToArray());
-        _kindSelector.SelectedIndex = previous >= 0 && previous < _kindSelector.Items.Count ? previous : -1;
+        _kindSelector.Items = Enum.GetValues<StepKind>().Select(Loc.StepKindName).ToArray();
+        _kindSelector.SelectedIndex = previous;
         _loading = false;
     }
 
@@ -1039,6 +1050,15 @@ internal sealed partial class MainForm : Form
                 return;
             }
 
+            // Told what not to capture before it starts listening: this window, so reaching for
+            // Stop recording does not land in the macro, and the profile's own hotkeys, which
+            // drive the recording rather than belonging inside it.
+            _recorder.IgnoreWindow = Handle;
+            _recorder.IgnoredKeys = new HashSet<Keys>
+            {
+                _current.StartHotkey, _current.PauseHotkey, _current.StopHotkey, _current.PickHotkey,
+            };
+
             _recorder.Start();
             _recordButton.Text = Loc.StopRecording;
             _recordButton.Kind = ButtonKind.Danger;
@@ -1397,6 +1417,14 @@ internal sealed partial class MainForm : Form
                 break;
             case PauseHotkeyName when IsRunning:
                 TogglePause();
+                break;
+
+            // Stop ends whichever of the two is actually in flight. It matters most for a
+            // recording: capturing input means the mouse is busy somewhere else entirely, and
+            // reaching back to this window to click Stop recording is the one gesture the
+            // recorder now deliberately refuses to record.
+            case StopHotkeyName when _recorder.IsRecording:
+                ToggleRecording();
                 break;
             case StopHotkeyName:
                 StopAutomation();
@@ -1782,10 +1810,18 @@ internal sealed partial class MainForm : Form
     /// instance of each shared control (the point fields, the Pick button, the button selector…)
     /// across every kind that needs one rather than keeping a separate copy per kind — the same
     /// approach the pre-macro Action card used for its Key/Text swap, extended to more rows.
+    ///
+    /// Every measurement here is a 96-DPI design value put through <see cref="Theme.Scale"/>.
+    /// These bounds are assigned fresh on every selection change, which is long after the one
+    /// rescale WinForms performs for the display's DPI — left raw, the whole editor would sit
+    /// at 100% coordinates inside a card the framework had already grown, bunched into its
+    /// top-left corner on any display scaled past 100%.
     /// </summary>
     private void ShowStepFields(StepKind kind)
     {
         HideAllStepFields();
+
+        int S(int value) => Theme.Scale(value, _stepDetailCard);
 
         const int Row1 = 76;
         const int Row2 = 120;
@@ -1794,30 +1830,50 @@ internal sealed partial class MainForm : Form
 
         void ShowButtonRow(int y)
         {
-            _stepButtonLabel.SetBounds(20, y + 6, 76, 20);
-            _stepButtonSelector.SetBounds(100, y, 174, 30);
+            _stepButtonLabel.SetBounds(S(20), S(y + 6), S(76), S(20));
+            _stepButtonSelector.SetBounds(S(100), S(y), S(174), S(30));
             _stepButtonLabel.Visible = true;
             _stepButtonSelector.Visible = true;
         }
 
         void ShowPointRow(int y, FlatButton pickButton, NumberBox xInput, NumberBox yInput, ThemedLabel label)
         {
-            label.SetBounds(20, y + 6, 76, 20);
-            xInput.SetBounds(100, y, 84, 32);
-            yInput.SetBounds(190, y, 84, 32);
-            pickButton.SetBounds(282, y - 1, 72, 30);
+            label.SetBounds(S(20), S(y + 6), S(76), S(20));
+            xInput.SetBounds(S(100), S(y), S(84), S(32));
+            yInput.SetBounds(S(190), S(y), S(84), S(32));
+            pickButton.SetBounds(S(282), S(y - 1), S(72), S(30));
             label.Visible = true;
             xInput.Visible = true;
             yInput.Visible = true;
             pickButton.Visible = true;
         }
 
+        void ShowTextRow(string label)
+        {
+            _stepTextLabel.SetBounds(S(20), S(Row1 + 6), S(88), S(20));
+            _stepTextField.SetBounds(S(100), S(Row1), S(304), S(32));
+            _stepTextLabel.Text = label;
+            _stepTextLabel.Visible = true;
+            _stepTextField.Visible = true;
+        }
+
+        // A label, a number field and a trailing hint — the shape four of the rows below share.
+        void ShowNumberRow(int y, ThemedLabel label, NumberBox input, ThemedLabel hint, int hintWidth)
+        {
+            label.SetBounds(S(20), S(y + 6), S(76), S(20));
+            input.SetBounds(S(100), S(y), S(84), S(32));
+            hint.SetBounds(S(192), S(y + 6), S(hintWidth), S(20));
+            label.Visible = true;
+            input.Visible = true;
+            hint.Visible = true;
+        }
+
         switch (kind)
         {
             case StepKind.KeyPress:
-                _stepKeyLabel.SetBounds(20, Row1 + 6, 76, 20);
-                _stepKeyBox.SetBounds(100, Row1, 174, 32);
-                _stepKeyHint.SetBounds(282, Row1 + 6, 72, 20);
+                _stepKeyLabel.SetBounds(S(20), S(Row1 + 6), S(76), S(20));
+                _stepKeyBox.SetBounds(S(100), S(Row1), S(174), S(32));
+                _stepKeyHint.SetBounds(S(282), S(Row1 + 6), S(72), S(20));
                 _stepKeyLabel.Visible = true;
                 _stepKeyBox.Visible = true;
                 _stepKeyHint.Visible = true;
@@ -1825,87 +1881,71 @@ internal sealed partial class MainForm : Form
 
             case StepKind.Click:
                 ShowButtonRow(Row1);
-                _stepDoubleClick.SetBounds(284, Row1 + 3, 78, 24);
+                _stepDoubleClick.SetBounds(S(284), S(Row1 + 3), S(78), S(24));
                 _stepDoubleClick.Visible = true;
 
-                _stepTargetLabel.SetBounds(20, Row2 + 6, 76, 20);
-                _stepTargetSelector.SetBounds(100, Row2, 210, 30);
+                _stepTargetLabel.SetBounds(S(20), S(Row2 + 6), S(76), S(20));
+                _stepTargetSelector.SetBounds(S(100), S(Row2), S(210), S(30));
                 _stepTargetLabel.Visible = true;
                 _stepTargetSelector.Visible = true;
 
                 ShowPointRow(Row3, _stepPickButton, _stepXInput, _stepYInput, _stepPointLabel);
-
-                _stepScatterLabel.SetBounds(20, Row4 + 6, 76, 20);
-                _stepScatter.SetBounds(100, Row4, 84, 32);
-                _stepScatterHint.SetBounds(192, Row4 + 6, 170, 20);
-                _stepScatterLabel.Visible = true;
-                _stepScatter.Visible = true;
-                _stepScatterHint.Visible = true;
+                ShowNumberRow(Row4, _stepScatterLabel, _stepScatter, _stepScatterHint, 170);
                 break;
 
             case StepKind.Drag:
                 ShowButtonRow(Row1);
                 ShowPointRow(Row2, _stepPickButton, _stepXInput, _stepYInput, _stepPointLabel);
                 ShowPointRow(Row3, _stepPickToButton, _stepToXInput, _stepToYInput, _stepToLabel);
-
-                _stepDragDurationLabel.SetBounds(20, Row4 + 6, 76, 20);
-                _stepDragDuration.SetBounds(100, Row4, 84, 32);
-                _stepDragDurationHint.SetBounds(192, Row4 + 6, 220, 20);
-                _stepDragDurationLabel.Visible = true;
-                _stepDragDuration.Visible = true;
-                _stepDragDurationHint.Visible = true;
+                ShowNumberRow(Row4, _stepDragDurationLabel, _stepDragDuration, _stepDragDurationHint, 220);
                 break;
 
             case StepKind.TypeText:
-                _stepTextLabel.SetBounds(20, Row1 + 6, 88, 20);
-                _stepTextField.SetBounds(100, Row1, 304, 32);
-                _stepTextLabel.Text = Loc.TextWord;
-                _stepTextLabel.Visible = true;
-                _stepTextField.Visible = true;
+                ShowTextRow(Loc.TextWord);
                 break;
 
             case StepKind.Wait:
-                _stepDelayEditor.SetBounds(20, Row1, 320, 32);
+                _stepDelayEditor.SetBounds(S(20), S(Row1), S(320), S(32));
                 _stepDelayEditor.Visible = true;
                 break;
 
             case StepKind.WaitForPixelColor:
                 ShowPointRow(Row1, _stepPickButton, _stepXInput, _stepYInput, _stepPointLabel);
 
-                _stepColorLabel.SetBounds(20, Row2 + 6, 76, 20);
-                _stepColorSwatch.SetBounds(100, Row2, 32, 32);
-                _stepCaptureColorButton.SetBounds(140, Row2, 90, 32);
+                _stepColorLabel.SetBounds(S(20), S(Row2 + 6), S(76), S(20));
+                _stepColorSwatch.SetBounds(S(100), S(Row2), S(32), S(32));
+                _stepCaptureColorButton.SetBounds(S(140), S(Row2), S(90), S(32));
                 _stepColorLabel.Visible = true;
                 _stepColorSwatch.Visible = true;
                 _stepCaptureColorButton.Visible = true;
 
-                _stepToleranceLabel.SetBounds(20, Row3 + 6, 76, 20);
-                _stepTolerance.SetBounds(100, Row3, 84, 32);
-                _stepToleranceHint.SetBounds(192, Row3 + 6, 220, 20);
-                _stepToleranceLabel.Visible = true;
-                _stepTolerance.Visible = true;
-                _stepToleranceHint.Visible = true;
-
-                _stepTimeoutLabel.SetBounds(20, Row4 + 6, 76, 20);
-                _stepTimeout.SetBounds(100, Row4, 84, 32);
-                _stepTimeoutHint.SetBounds(192, Row4 + 6, 220, 20);
-                _stepTimeoutLabel.Visible = true;
-                _stepTimeout.Visible = true;
-                _stepTimeoutHint.Visible = true;
+                ShowNumberRow(Row3, _stepToleranceLabel, _stepTolerance, _stepToleranceHint, 220);
+                ShowNumberRow(Row4, _stepTimeoutLabel, _stepTimeout, _stepTimeoutHint, 220);
                 break;
 
             case StepKind.ClipboardSet:
-                _stepTextLabel.SetBounds(20, Row1 + 6, 88, 20);
-                _stepTextField.SetBounds(100, Row1, 304, 32);
-                _stepTextLabel.Text = Loc.ClipboardTextLabel;
-                _stepTextLabel.Visible = true;
-                _stepTextField.Visible = true;
+                ShowTextRow(Loc.ClipboardTextLabel);
                 break;
 
             case StepKind.ClipboardPaste:
-                _stepClipboardHint.SetBounds(20, Row1 + 6, 380, 32);
+                _stepClipboardHint.SetBounds(S(20), S(Row1 + 6), S(380), S(32));
                 _stepClipboardHint.Visible = true;
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Re-lays the step editor after the window moves to a differently-scaled display.
+    /// <see cref="ShowStepFields"/>'s bounds were computed for the old DPI, and the framework's
+    /// own rescale does not revisit them — see <see cref="Theme.Scale"/>.
+    /// </summary>
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+
+        if (_selectedStep is { } step)
+        {
+            ShowStepFields(step.Kind);
         }
     }
 

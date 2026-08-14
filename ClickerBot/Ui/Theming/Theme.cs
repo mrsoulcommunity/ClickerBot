@@ -92,6 +92,26 @@ internal static class Theme
     public static readonly Font MonoSmall = new("Consolas", 8.5F);
     public static readonly Font MonoLarge = new("Consolas", 17F, FontStyle.Bold);
 
+    // --- Scaling ---------------------------------------------------------
+
+    /// <summary>
+    /// Turns a design-time measurement — every pixel literal in this app's layout and paint
+    /// code assumes a 96-DPI screen — into the pixels <paramref name="control"/> is actually
+    /// drawn with.
+    ///
+    /// WinForms' own <see cref="AutoScaleMode.Dpi"/> pass rescales the control tree exactly
+    /// once, and only the bounds that were already set when it ran. Anything positioned or
+    /// painted after that has to scale itself: a control repositioned at runtime (see
+    /// <see cref="MainForm.ShowStepFields"/>, which re-lays the step editor on every selection
+    /// change) would otherwise sit at 100% coordinates inside a card the framework has already
+    /// grown, and a hard-coded offset inside an <c>OnPaint</c> would draw a 96-DPI composition
+    /// into a box scaled for 144.
+    ///
+    /// Integer arithmetic rather than a float factor, so the same input always lands on the
+    /// same pixel — two controls meant to share an edge cannot round apart.
+    /// </summary>
+    public static int Scale(int value, Control control) => value * control.DeviceDpi / 96;
+
     // --- Drawing helpers -------------------------------------------------
 
     public static GraphicsPath RoundedRect(Rectangle bounds, int radius)

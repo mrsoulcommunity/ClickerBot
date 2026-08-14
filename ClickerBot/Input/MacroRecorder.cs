@@ -48,6 +48,23 @@ internal sealed class MacroRecorder : IDisposable
     // recording once each finally comes up.
     private readonly Dictionary<ClickButton, Point> _downPoints = new();
 
+    /// <summary>
+    /// A window whose own input is left out of the recording — ClickerBot's.
+    ///
+    /// Without this every recording ends with a click on the Stop recording button itself: a
+    /// low-level hook sees the mouse-up before the message is dispatched to the button, so the
+    /// click is captured a moment before the handler that stops the capture runs. Reaching for
+    /// any of the app's own controls mid-recording has the same problem.
+    /// </summary>
+    public IntPtr IgnoreWindow { get; set; }
+
+    /// <summary>
+    /// Keys left out of the recording — the profile's own hotkeys, which drive the recording
+    /// rather than belonging inside it. Stop is the one that matters: it ends the capture, and
+    /// a hook sees it before the hotkey fires, so it would be the recording's last step.
+    /// </summary>
+    public IReadOnlySet<Keys> IgnoredKeys { get; set; } = new HashSet<Keys>();
+
     public MacroRecorder()
     {
         _keyboardProc = KeyboardProc;
@@ -107,7 +124,12 @@ internal sealed class MacroRecorder : IDisposable
             if (message == WmKeyDown || message == WmSysKeyDown)
             {
                 var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-                Emit(new MacroStep { Kind = StepKind.KeyPress, Key = (Keys)data.vkCode });
+                var key = (Keys)data.vkCode;
+
+                if (!IgnoredKeys.Contains(key))
+                {
+                    Emit(new MacroStep { Kind = StepKind.KeyPress, Key = key });
+                }
             }
         }
 
@@ -120,6 +142,14 @@ internal sealed class MacroRecorder : IDisposable
         {
             var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
             var point = new Point(data.pt.X, data.pt.Y);
+
+            if (IsOwnWindow(data.pt))
+            {
+                // Dropped rather than remembered: a press that lands on ClickerBot has no
+                // matching release to record, and leaving it in _downPoints would pair it with
+                // the next release somewhere else and invent a drag across the whole screen.
+                return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+            }
 
             switch (wParam.ToInt32())
             {
@@ -134,6 +164,22 @@ internal sealed class MacroRecorder : IDisposable
         }
 
         return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="screenPoint"/> is over ClickerBot's own window. Resolved through
+    /// the top-level owner, so a click on any child control — a button, a list row, the step
+    /// editor's fields — resolves to the same window rather than only the form's own background.
+    /// </summary>
+    private bool IsOwnWindow(POINT screenPoint)
+    {
+        if (IgnoreWindow == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        IntPtr hit = WindowFromPoint(screenPoint);
+        return hit != IntPtr.Zero && GetAncestor(hit, GaRoot) == IgnoreWindow;
     }
 
     private void EndPress(Point point, ClickButton button)
@@ -234,4 +280,13 @@ internal sealed class MacroRecorder : IDisposable
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    /// <summary>GA_ROOT — walk up to the top-level window, past any child control.</summary>
+    private const uint GaRoot = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
 }

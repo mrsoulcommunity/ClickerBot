@@ -50,7 +50,7 @@ Built with .NET 8 and Windows Forms — every control is custom-drawn, so the in
 | Feature | Description |
 | --- | --- |
 | **Step-sequence macro builder** | A profile is an ordered list of steps — press a key, click, drag, type text, wait, wait for a pixel to match a color, set the clipboard, or paste — that repeats as a whole on every iteration. Reorder, edit, or delete any step; nothing about the sequence's length or shape is fixed. |
-| **Macro recorder** | Click **Record** and ClickerBot captures your real mouse and keyboard input live — clicks, drags, and key presses, each with a wait sized to the actual pacing you recorded at — and turns it straight into an editable step sequence. Click **Stop recording** when you're done. |
+| **Macro recorder** | Click **Record** and ClickerBot captures your real mouse and keyboard input live — clicks, drags, and key presses, each with a wait sized to the actual pacing you recorded at — and turns it straight into an editable step sequence. Input aimed at ClickerBot's own window is left out, so reaching back to press **Stop recording** never lands in the macro; your Stop hotkey ends a recording too. |
 | **Mouse drag** | A press-move-release motion between two points over a configurable duration (or instant), for targets that only recognize a real drag rather than a teleporting click. |
 | **Wait for pixel color** | Pauses a step sequence until a screen pixel matches a target color within a tolerance, or a timeout elapses — for a macro that reacts to something changing on screen instead of just running blind on a timer. |
 | **Clipboard steps** | Set the clipboard to fixed text, or paste whatever is currently on it with `Ctrl+V` — either as its own step, wherever it belongs in the sequence. |
@@ -80,7 +80,7 @@ Built with .NET 8 and Windows Forms — every control is custom-drawn, so the in
 | **Auto-save** | Changes are persisted to disk automatically a moment after you make them — nothing to remember to save. |
 | **Light & dark themes** | One click on the header switch, with an animated transition. The title bar follows too. See [Appearance](#-appearance). |
 | **🌐 English & Persian (فارسی)** | A switch beside the theme toggle translates the entire window, including the phone page — with correct right-to-left layout on the phone page. See [Language](#-language). |
-| **High-DPI aware** | Per-monitor V2 DPI awareness, so the UI stays sharp on scaled and mixed-DPI displays. |
+| **High-DPI aware** | Per-monitor V2 DPI awareness, so the UI stays sharp on scaled and mixed-DPI displays — including the parts laid out at runtime, which re-measure themselves when the window moves to a differently-scaled monitor. |
 
 ---
 
@@ -178,7 +178,9 @@ The switch in the top-right corner of the header toggles between the light and d
 
 `Theme` exposes the active `Palette` and raises `Changed` when it is swapped. Controls read colors inside `OnPaint` rather than caching them at construction, so a switch is mostly just a repaint. Stock WinForms controls do cache their colors, so those are wrapped in themed variants that implement `IThemedControl`, and `ThemeManager` walks the control tree calling `ApplyTheme()` on each one — with painting suspended so the change lands in a single frame.
 
-Three controls are drawn from scratch instead of using the framework versions, because Windows paints those itself and they stay light no matter what colors are assigned: the checkbox glyph, the numeric field's spin buttons, and the confirmation dialog. Adding a third appearance would mean adding one `Palette` instance and changing nothing else.
+Several controls are drawn from scratch instead of using the framework versions, because Windows paints those itself in system colors and they stay light no matter what is assigned to them: the checkbox glyph, the numeric field's spin buttons, the drop-down list (frame, chevron and popup alike), the menus, and the confirmation dialog. Adding a third appearance would mean adding one `Palette` instance and changing nothing else.
+
+Sizes get the same treatment as colors. Every pixel literal in the layout and paint code is a 96-DPI design measurement passed through `Theme.Scale`, because WinForms' own DPI pass rescales the control tree exactly once and only touches bounds that already existed when it ran — anything positioned or painted afterwards (the step editor re-lays itself on every selection change; the run bar's readouts are drawn, not placed) has to scale itself or it would compose a 100% layout inside a container the framework had already grown.
 
 ---
 
@@ -310,6 +312,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   │   ├── Card.cs             # Titled section container
 │   │   │   ├── ConfirmDialog.cs    # Themed replacement for MessageBox
 │   │   │   ├── DelayEditor.cs      # Fixed/random delay control
+│   │   │   ├── Dropdown.cs         # Owner-drawn drop-down list (the step-kind selector)
 │   │   │   ├── FlatButton.cs       # Owner-drawn button (primary/secondary/danger)
 │   │   │   ├── KeyCaptureBox.cs    # Field that records the next key pressed
 │   │   │   ├── NumberBox.cs        # Owner-drawn numeric field with steppers
@@ -322,8 +325,8 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   │   ├── TextField.cs        # Owner-drawn free-text field (Type-text / Set-clipboard steps)
 │   │   │   ├── ThemeToggle.cs      # Animated light/dark switch
 │   │   │   ├── ThemedCheckBox.cs   # Owner-drawn checkbox
-│   │   │   ├── ThemedComboBox.cs   # Owner-drawn drop-down (the step-kind selector)
 │   │   │   ├── ThemedLabel.cs      # Label that stores a role, not a color
+│   │   │   ├── ThemedMenuRenderer.cs # Palette-driven menus (dropdown popup + tray menu)
 │   │   │   └── ThemedTextBox.cs    # Palette-aware text box
 │   │   ├── Localization/
 │   │   │   └── Loc.cs              # Every interface string, in both languages
@@ -376,7 +379,9 @@ Cancellation is cooperative through a `CancellationTokenSource`, checked before 
 
 **Window targeting** is polled on the same 100ms UI timer as the cadence strip and the failsafe: for a profile with `RequireTargetWindow` set, `ForegroundWindow.Matches` checks the current foreground window's title against a case-insensitive substring, and the result is fed into the `PauseGate`. The *Repeat* card's **Use current** button can't simply read the foreground window at the moment it's clicked — clicking it makes ClickerBot itself the foreground window first — so it runs a short countdown instead, giving you time to switch to the intended window before it captures the title.
 
-**The macro recorder** (`MacroRecorder`) installs global `WH_KEYBOARD_LL` and `WH_MOUSE_LL` hooks and only ever observes — every hook callback calls `CallNextHookEx`, so recording never blocks the input it's watching. A key press becomes a `KeyPress` step; a mouse down/up pair becomes a `Click` step, or a `Drag` step if the cursor moved more than a few pixels between them. A `Wait` step is inserted ahead of each capture sized to the real elapsed time since the previous one, so the recording reproduces the pacing it was recorded at, not just the actions.
+**The macro recorder** (`MacroRecorder`) installs global `WH_KEYBOARD_LL` and `WH_MOUSE_LL` hooks and only ever observes — every hook callback calls `CallNextHookEx`, so recording never blocks the input it's watching. A key press becomes a `KeyPress` step; a mouse down/up pair becomes a `Click` step, or a `Drag` step if the cursor moved more than a few pixels between them, tracked per button so holding two at once doesn't lose either. A `Wait` step is inserted ahead of each capture sized to the real elapsed time since the previous one, so the recording reproduces the pacing it was recorded at, not just the actions.
+
+Two things are deliberately not recorded. Input over ClickerBot's own window is dropped — a low-level hook sees the mouse-up on **Stop recording** before that message is ever dispatched to the button, so without the filter every recording would end with a click on the app's own toolbar. So are the profile's four hotkeys, for the same reason applied to the keyboard: they drive the recording rather than belonging inside it, and Stop ends a recording just as it ends a run.
 
 **The failsafe** is checked on that same 100ms timer: if the real cursor is within a pixel of any corner of `SystemInformation.VirtualScreen`, the run is cancelled with a reason that overrides the ordinary "Stopped" message — unless that corner happens to be one of the sequence's own Click or Drag points, since a run is allowed to legitimately park the cursor there.
 
@@ -427,6 +432,9 @@ Check that `%APPDATA%\ClickerBot\profiles.json` exists and is readable. A corrup
 
 **A run keeps stopping itself the moment it starts, saying the mouse touched a corner.**
 The profile's own click point is a screen corner (or close to one), and something outside the run nudged the cursor before the automation could park it there itself. Either move the click target away from the corner, or turn off **Abort if the mouse touches a screen corner** in the *Window* card for that profile.
+
+**Recording captured something I didn't mean to do.**
+Input over ClickerBot's own window is never recorded, and neither are the profile's four hotkeys — so clicking **Stop recording**, or pressing your Stop hotkey, ends the capture without leaving a step behind. Anything else you do while recording is fair game, including clicks on other applications' title bars and taskbar buttons. Trim what you don't want afterwards: a recording is an ordinary step sequence, and every step in it can be edited or deleted.
 
 **Starting with Windows is checked, but ClickerBot didn't launch at sign-in.**
 Some third-party startup managers and enterprise policies clear entries from the per-user Run key. Re-check the box, or add ClickerBot through your startup manager pointing at the ClickerBot executable with a `--minimized` argument.

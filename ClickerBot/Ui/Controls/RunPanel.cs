@@ -193,19 +193,31 @@ internal sealed class RunPanel : Card, ILocalizedControl
         DrawProgress(g);
     }
 
+    /// <summary>
+    /// This panel's own measurements, in the pixels this display actually uses. Every constant
+    /// above is a 96-DPI design value, and both the layout below and the painting further down
+    /// run long after the framework's one-time rescale — see <see cref="Theme.Scale"/>.
+    /// </summary>
+    private int S(int value) => Theme.Scale(value, this);
+
     private void LayoutChildren()
     {
-        int right = Width - Edge;
+        int edge = S(Edge);
+        int buttonWidth = S(ButtonWidth);
+        int gap = S(ButtonGap);
+        int buttonHeight = S(ButtonHeight);
+        int top = S(ButtonTop);
+        int right = Width - edge;
 
-        _stop.SetBounds(right - ButtonWidth, ButtonTop, ButtonWidth, ButtonHeight);
-        _pause.SetBounds(_stop.Left - ButtonGap - ButtonWidth, ButtonTop, ButtonWidth, ButtonHeight);
-        _start.SetBounds(_pause.Left - ButtonGap - ButtonWidth, ButtonTop, ButtonWidth, ButtonHeight);
-        _test.SetBounds(_start.Left - ButtonGap - TestButtonWidth, ButtonTop, TestButtonWidth, ButtonHeight);
+        _stop.SetBounds(right - buttonWidth, top, buttonWidth, buttonHeight);
+        _pause.SetBounds(_stop.Left - gap - buttonWidth, top, buttonWidth, buttonHeight);
+        _start.SetBounds(_pause.Left - gap - buttonWidth, top, buttonWidth, buttonHeight);
+        _test.SetBounds(_start.Left - gap - S(TestButtonWidth), top, S(TestButtonWidth), buttonHeight);
 
         // The meter takes whatever the buttons leave, which keeps the rhythm strip as wide
         // as the window allows.
-        int meterRight = _test.Left - 24;
-        _meter.SetBounds(Edge, MeterTop, Math.Max(80, meterRight - Edge), MeterHeight);
+        int meterRight = _test.Left - S(24);
+        _meter.SetBounds(edge, S(MeterTop), Math.Max(S(80), meterRight - edge), S(MeterHeight));
     }
 
     private void DrawStatusLine(Graphics g)
@@ -214,7 +226,7 @@ internal sealed class RunPanel : Card, ILocalizedControl
         // paused by the user or waiting on the target window — reads the same as idle: nothing
         // is actually happening right now, whatever the reason.
         bool held = _phase is RunPhase.Paused or RunPhase.WaitingForWindow;
-        var lamp = new Rectangle(21, 24, 9, 9);
+        var lamp = new Rectangle(S(21), S(24), S(9), S(9));
         Color lampColor = !_running ? Theme.Disabled
             : held ? Theme.TextSecondary
             : Theme.Accent;
@@ -227,7 +239,7 @@ internal sealed class RunPanel : Card, ILocalizedControl
         if (_running && !held)
         {
             using var halo = new SolidBrush(Color.FromArgb(48, lampColor));
-            g.FillEllipse(halo, Rectangle.Inflate(lamp, 4, 4));
+            g.FillEllipse(halo, Rectangle.Inflate(lamp, S(4), S(4)));
         }
 
         Color text = _messageRole switch
@@ -240,16 +252,17 @@ internal sealed class RunPanel : Card, ILocalizedControl
         };
 
         // Stops short of the readout columns on the right rather than running under them.
-        int available = Width - 38 - ReadoutBlockWidth - Edge - 16;
+        int available = Width - S(38) - S(ReadoutBlockWidth) - S(Edge) - S(16);
         TextRenderer.DrawText(g, _message, Theme.Base,
-            new Rectangle(38, 18, Math.Max(60, available), 22), text,
+            new Rectangle(S(38), S(18), Math.Max(S(60), available), S(22)), text,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }
 
     private void DrawReadouts(Graphics g)
     {
-        int top = ReadoutTop;
-        int right = Width - Edge;
+        int top = S(ReadoutTop);
+        int columnWidth = S(ReadoutColumnWidth);
+        int right = Width - S(Edge);
 
         TimeSpan elapsed = LiveElapsed();
         string rate = elapsed.TotalSeconds > 0.25 && _iteration > 0
@@ -268,15 +281,14 @@ internal sealed class RunPanel : Card, ILocalizedControl
         int x = right;
         for (int i = columns.Length - 1; i >= 0; i--)
         {
-            x -= ReadoutColumnWidth;
-            var cell = new Rectangle(x, top, ReadoutColumnWidth, 44);
+            x -= columnWidth;
 
             TextRenderer.DrawText(g, columns[i].Label, Theme.Caption,
-                new Rectangle(cell.X, cell.Y, cell.Width, 14), Theme.TextSecondary,
+                new Rectangle(x, top, columnWidth, S(14)), Theme.TextSecondary,
                 TextFormatFlags.Left | TextFormatFlags.NoPrefix);
 
             TextRenderer.DrawText(g, columns[i].Value, Theme.Mono,
-                new Rectangle(cell.X, cell.Y + 15, cell.Width, 20),
+                new Rectangle(x, top + S(15), columnWidth, S(20)),
                 _running ? Theme.TextPrimary : Theme.TextSecondary,
                 TextFormatFlags.Left | TextFormatFlags.NoPrefix);
         }

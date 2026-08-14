@@ -171,7 +171,7 @@ internal sealed partial class MainForm
         _noStepSelectedLabel.SetBounds(20, 40, 300, 20);
         card.Controls.Add(_noStepSelectedLabel);
 
-        _kindSelector.SetBounds(20, 36, 240, 28);
+        _kindSelector.SetBounds(20, 35, 240, 30);
         _kindSelector.SelectedIndexChanged += KindSelector_SelectedIndexChanged;
         card.Controls.Add(_kindSelector);
 
