@@ -123,7 +123,7 @@ internal sealed class KeyCaptureBox : Control, IThemedControl
         }
 
         bool empty = Key == Keys.None;
-        string text = Focused ? (empty ? "Press any key…" : KeyNames.Describe(Key)) : empty ? Placeholder : KeyNames.Describe(Key);
+        string text = Focused ? (empty ? Loc.PressAnyKey : KeyNames.Describe(Key)) : empty ? Placeholder : KeyNames.Describe(Key);
         Color fore = !Enabled ? Theme.Disabled : empty ? Theme.TextSecondary : Focused ? Theme.Accent : Theme.TextPrimary;
 
         TextRenderer.DrawText(g, text, Font, new Rectangle(8, 0, Width - 16, Height), fore,

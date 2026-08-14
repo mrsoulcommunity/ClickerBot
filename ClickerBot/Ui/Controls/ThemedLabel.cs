@@ -43,12 +43,31 @@ internal sealed class ThemedLabel : Label, IThemedControl
         }
     }
 
-    public void ApplyTheme() => ForeColor = _role switch
+    /// <summary>
+    /// Whether this label's alignment should follow the reading direction of the current
+    /// language. On by default. A label given its own fixed alignment — a centered dash, a
+    /// centered empty-state message — sets this false once, so <see cref="ApplyTheme"/> never
+    /// overwrites a choice that had nothing to do with reading direction in the first place.
+    /// </summary>
+    public bool FollowsReadingDirection { get; set; } = true;
+
+    public void ApplyTheme()
     {
-        TextRole.Secondary => Theme.TextSecondary,
-        TextRole.Accent => Theme.Accent,
-        TextRole.Success => Theme.Success,
-        TextRole.Danger => Theme.Danger,
-        _ => Theme.TextPrimary,
-    };
+        ForeColor = _role switch
+        {
+            TextRole.Secondary => Theme.TextSecondary,
+            TextRole.Accent => Theme.Accent,
+            TextRole.Success => Theme.Success,
+            TextRole.Danger => Theme.Danger,
+            _ => Theme.TextPrimary,
+        };
+
+        // The rest of the window keeps its left-to-right geometry in Persian too — see Loc's
+        // class comment — but a plain label is stock-rendered, not owner-drawn, so nudging its
+        // text to the edge its language actually reads from costs nothing and is worth doing.
+        if (FollowsReadingDirection)
+        {
+            TextAlign = Loc.IsPersian ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft;
+        }
+    }
 }

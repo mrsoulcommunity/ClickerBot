@@ -20,6 +20,14 @@ internal sealed class RemoteControlServer : IDisposable
 {
     public const int Port = 8787;
 
+    // The phone page's JS reads camelCase fields off the status response, which is the normal
+    // convention for a JSON API and not what System.Text.Json emits by default for a PascalCase
+    // C# record.
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
 
@@ -65,7 +73,7 @@ internal sealed class RemoteControlServer : IDisposable
         catch (Exception ex) when (ex is HttpListenerException or SocketException)
         {
             listener.Close();
-            return $"Could not start the remote server on port {Port}: {ex.Message}";
+            return Loc.CouldNotStartRemoteServer(Port, ex.Message);
         }
 
         _listener = listener;
@@ -155,7 +163,7 @@ internal sealed class RemoteControlServer : IDisposable
 
         if (request.HttpMethod == "GET" && path == "/")
         {
-            await WriteAsync(response, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(PageHtml))
+            await WriteAsync(response, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(BuildPageHtml(Loc.Current)))
                 .ConfigureAwait(false);
             return;
         }
@@ -163,7 +171,8 @@ internal sealed class RemoteControlServer : IDisposable
         if (request.HttpMethod == "GET" && path == "/api/status")
         {
             var payload = GetStatus?.Invoke() ?? new RemoteStatusPayload(false, "", "", 0, null, 0, "Not ready");
-            await WriteAsync(response, "application/json; charset=utf-8", JsonSerializer.SerializeToUtf8Bytes(payload))
+            await WriteAsync(response, "application/json; charset=utf-8",
+                    JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions))
                 .ConfigureAwait(false);
             return;
         }
@@ -279,18 +288,65 @@ internal sealed class RemoteControlServer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Fills in <see cref="PageHtml"/>'s handful of <c>__TOKEN__</c> placeholders for the
+    /// requested language. Everything else — layout, CSS, the routing logic in the script — is
+    /// one shared template; only the words and the <c>&lt;html&gt;</c> direction differ, the
+    /// same split <see cref="MainForm.ApplyLanguage"/> keeps on the desktop side. RTL is safe
+    /// to do properly here (unlike the owner-drawn desktop UI): this is plain CSS a browser
+    /// mirrors on its own, not GDI+ that would need every glyph and icon redrawn by hand.
+    /// </summary>
+    private static string BuildPageHtml(Language language)
+    {
+        bool fa = language == Language.Persian;
+        string brand = fa ? "کنترل از راه دور ClickerBot" : "ClickerBot Remote";
+
+        var labels = new
+        {
+            noProfile = fa ? "بدون پروفایل" : "No profile",
+            ready = fa ? "آماده" : "Ready",
+            start = fa ? "شروع" : "Start",
+            stop = fa ? "توقف" : "Stop",
+            runningSuffix = fa ? " · در حال اجرا" : " · running",
+            connected = fa ? "متصل" : "Connected",
+            serverError = fa ? "خطای سرور" : "Server error",
+            disconnected = fa ? "قطع شد" : "Disconnected",
+            locked = fa ? "قفل" : "Locked",
+            checking = fa ? "در حال بررسی…" : "Checking…",
+            pinRejected = fa ? "پین رد شد — دوباره امتحان کنید." : "That PIN was rejected. Try again.",
+            wrongPin = fa ? "پین اشتباه است — دوباره امتحان کنید." : "Wrong PIN — try again.",
+            unreachable = fa ? "ارتباط با ClickerBot برقرار نشد." : "Could not reach ClickerBot.",
+        };
+
+        return PageHtml
+            .Replace("__HTML_ATTRS__", fa ? "lang=\"fa\" dir=\"rtl\"" : "lang=\"en\"")
+            .Replace("__TITLE__", brand)
+            .Replace("__BRAND__", brand)
+            .Replace("__LOCK_HEADING__", fa
+                ? "پینی را که روی رایانه نمایش داده شده وارد کنید"
+                : "Enter the PIN shown on your PC")
+            .Replace("__LOCK_BODY__", fa
+                ? "ClickerBot هر بار که اجرا می‌شود، یک پین 6 رقمی تازه در کارت ریموت نشان می‌دهد."
+                : "ClickerBot shows a fresh 6-digit PIN in the Remote card each time it starts.")
+            .Replace("__CONNECTING_LABEL__", fa ? "در حال اتصال…" : "Connecting…")
+            .Replace("__LOADING_LABEL__", fa ? "در حال بارگذاری…" : "Loading…")
+            .Replace("__START_LABEL__", labels.start)
+            .Replace("__LABELS_JSON__", JsonSerializer.Serialize(labels));
+    }
+
     // The phone-facing page. Self-contained — no external fonts, scripts, or images — so it
     // works with the phone on the LAN and nothing else. Visual language matches the desktop
     // app and its icon exactly: the same reticle-and-lamp mark, the same rule that colour
-    // marks the running state and nothing else does.
+    // marks the running state and nothing else does. Built through BuildPageHtml, above, which
+    // fills in the __TOKEN__ placeholders for the requested language.
     private const string PageHtml = """
     <!doctype html>
-    <html lang="en">
+    <html __HTML_ATTRS__>
     <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
     <meta name="theme-color" content="#0B0B0D">
-    <title>ClickerBot Remote</title>
+    <title>__TITLE__</title>
     <style>
       :root{
         --bg:#0B0B0D; --surface:#17171A; --border:#27272A; --borderStrong:#3F3F46;
@@ -358,7 +414,9 @@ internal sealed class RemoteControlServer : IDisposable
       .lock .mark{width:64px;height:64px}
       .lock h1{font-size:17px;font-weight:700;margin:0;text-align:center}
       .lock p{font-size:13px;color:var(--text2);margin:0;text-align:center;max-width:280px;line-height:1.5}
-      .pin-row{display:flex;gap:10px}
+      /* PIN boxes fill left-to-right even on the Persian page — the same convention every
+         OTP/PIN entry uses regardless of the surrounding language. */
+      .pin-row{display:flex;gap:10px;direction:ltr}
       .pin-box{width:44px;height:56px;border-radius:12px;background:var(--surface);
         border:1.5px solid var(--border);color:var(--text);font-size:24px;text-align:center;
         font-family:ui-monospace,Consolas,monospace;caret-color:var(--accent)}
@@ -386,8 +444,8 @@ internal sealed class RemoteControlServer : IDisposable
           <stop offset="0" stop-color="#0B0B0D"/><stop offset="1" stop-color="#17171A"/>
         </linearGradient></defs>
       </svg>
-      <h1>Enter the PIN shown on your PC</h1>
-      <p>ClickerBot shows a fresh 6-digit PIN in the Remote card each time it starts.</p>
+      <h1>__LOCK_HEADING__</h1>
+      <p>__LOCK_BODY__</p>
       <div class="pin-row" id="pinRow">
         <input class="pin-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off">
         <input class="pin-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off">
@@ -410,9 +468,9 @@ internal sealed class RemoteControlServer : IDisposable
             </g>
             <circle cx="50" cy="50" r="12" fill="#FBBF24"/>
           </svg>
-          ClickerBot Remote
+          __BRAND__
         </div>
-        <div class="conn" id="conn"><span class="dot"></span><span id="connText">Connecting…</span></div>
+        <div class="conn" id="conn"><span class="dot"></span><span id="connText">__CONNECTING_LABEL__</span></div>
       </div>
 
       <div class="hero">
@@ -430,19 +488,20 @@ internal sealed class RemoteControlServer : IDisposable
         </div>
         <div class="status-block">
           <div class="profile-name" id="profileName">—</div>
-          <div class="status-line" id="statusLine">Loading…</div>
+          <div class="status-line" id="statusLine">__LOADING_LABEL__</div>
           <div class="readout" id="readout"></div>
         </div>
       </div>
 
       <div class="action">
-        <button id="actionBtn" class="start" disabled>Start</button>
+        <button id="actionBtn" class="start" disabled>__START_LABEL__</button>
         <div class="hint" id="hint">&nbsp;</div>
       </div>
     </div>
 
     <script>
     (() => {
+      const L = __LABELS_JSON__;
       const $ = id => document.getElementById(id);
       const lampDot = $('lampDot'), halo = $('halo'), actionBtn = $('actionBtn'),
             statusLine = $('statusLine'), profileName = $('profileName'), readout = $('readout'),
@@ -467,26 +526,26 @@ internal sealed class RemoteControlServer : IDisposable
       }
 
       function renderStatus(s) {
-        profileName.textContent = s.profileName || 'No profile';
+        profileName.textContent = s.profileName || L.noProfile;
         lastRunning = s.running;
         lampDot.setAttribute('fill', s.running ? 'url(#lit)' : '#71717A');
         halo.classList.toggle('on', s.running);
 
         if (s.running) {
-          statusLine.innerHTML = '<span class="mono">' + s.mode + '</span> · running';
-          readout.innerHTML = `<span><b>${s.iteration.toLocaleString()}</b>${s.target ? ' / ' + s.target.toLocaleString() : ''}</span>` +
+          statusLine.innerHTML = '<span class="mono">' + s.mode + '</span>' + L.runningSuffix;
+          readout.innerHTML = `<span><b>${s.iteration.toLocaleString('en-US')}</b>${s.target ? ' / ' + s.target.toLocaleString('en-US') : ''}</span>` +
                                `<span class="mono">${fmtElapsed(s.elapsedSeconds)}</span>`;
-          actionBtn.textContent = 'Stop';
+          actionBtn.textContent = L.stop;
           actionBtn.className = 'stop';
         } else {
-          statusLine.textContent = s.message || 'Ready';
+          statusLine.textContent = s.message || L.ready;
           readout.innerHTML = '';
-          actionBtn.textContent = 'Start';
+          actionBtn.textContent = L.start;
           actionBtn.className = 'start';
         }
         actionBtn.disabled = false;
         conn.classList.add('live');
-        connText.textContent = 'Connected';
+        connText.textContent = L.connected;
       }
 
       async function poll() {
@@ -496,11 +555,11 @@ internal sealed class RemoteControlServer : IDisposable
             renderStatus(await res.json());
           } else {
             conn.classList.remove('live');
-            connText.textContent = 'Server error';
+            connText.textContent = L.serverError;
           }
         } catch (e) {
           conn.classList.remove('live');
-          connText.textContent = 'Disconnected';
+          connText.textContent = L.disconnected;
         } finally {
           setTimeout(poll, 1500);
         }
@@ -514,12 +573,12 @@ internal sealed class RemoteControlServer : IDisposable
         try {
           const res = await api(path, { method: 'POST' });
           if (res.status === 401) {
-            showLock('That PIN was rejected. Try again.');
+            showLock(L.pinRejected);
             return;
           }
           hint.textContent = res.ok ? ' ' : await res.text();
         } catch (e) {
-          hint.textContent = 'Could not reach ClickerBot.';
+          hint.textContent = L.unreachable;
         } finally {
           busy = false;
           actionBtn.disabled = false;
@@ -547,7 +606,7 @@ internal sealed class RemoteControlServer : IDisposable
 
       async function submitPin() {
         const candidate = boxes.map(b => b.value).join('');
-        lockError.textContent = 'Checking…';
+        lockError.textContent = L.checking;
         try {
           const res = await fetch('/api/verify', { method: 'POST', headers: { 'X-Pin': candidate } });
           if (res.ok) {
@@ -557,12 +616,12 @@ internal sealed class RemoteControlServer : IDisposable
             lockError.textContent = '';
             poll();
           } else {
-            lockError.textContent = 'Wrong PIN — try again.';
+            lockError.textContent = L.wrongPin;
             boxes.forEach(b => b.value = '');
             boxes[0].focus();
           }
         } catch (e) {
-          lockError.textContent = 'Could not reach ClickerBot.';
+          lockError.textContent = L.unreachable;
         }
       }
 
@@ -576,7 +635,7 @@ internal sealed class RemoteControlServer : IDisposable
         poll();
       } else {
         showLock('');
-        connText.textContent = 'Locked';
+        connText.textContent = L.locked;
       }
     })();
     </script>

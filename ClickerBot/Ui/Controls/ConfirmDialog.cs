@@ -40,7 +40,7 @@ internal sealed class ConfirmDialog : Form
         titleLabel.SetBounds(28, 26, ClientSize.Width - 56, 28);
         Controls.Add(titleLabel);
 
-        _cancel = new FlatButton { Text = "Cancel", Kind = ButtonKind.Secondary, DialogResult = DialogResult.Cancel };
+        _cancel = new FlatButton { Text = Loc.Cancel, Kind = ButtonKind.Secondary, DialogResult = DialogResult.Cancel };
         _cancel.SetBounds(ClientSize.Width - 268, 106, 120, 38);
 
         var confirm = new FlatButton

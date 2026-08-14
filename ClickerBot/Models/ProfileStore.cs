@@ -44,6 +44,12 @@ internal sealed class ProfileStore
     /// </summary>
     public bool RemoteControlEnabled { get; set; }
 
+    /// <summary>
+    /// The interface language. Application-wide, like the theme. A first run starts on
+    /// whatever <see cref="Loc.SystemPreference"/> reads off Windows' own display language.
+    /// </summary>
+    public Language Language { get; set; } = Loc.SystemPreference();
+
     [JsonIgnore]
     public static string FilePath { get; } = PathUnder("ClickerBot");
 
@@ -104,6 +110,7 @@ internal sealed class ProfileStore
 
         SelectedIndex = Math.Clamp(SelectedIndex, 0, Profiles.Count - 1);
         Appearance = Appearance == ThemeMode.Dark ? ThemeMode.Dark : ThemeMode.Light;
+        Language = Language == Language.Persian ? Language.Persian : Language.English;
         return true;
     }
 
@@ -178,7 +185,7 @@ internal sealed class ProfileStore
     /// <summary>A first run starts on whatever appearance Windows itself is set to.</summary>
     private static ProfileStore CreateDefault() => new()
     {
-        Profiles = { new Profile { Name = "Default" } },
+        Profiles = { new Profile { Name = Loc.DefaultProfileName } },
         SelectedIndex = 0,
         Appearance = WindowChrome.SystemPreference(),
     };

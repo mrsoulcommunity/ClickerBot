@@ -11,6 +11,7 @@ internal sealed partial class MainForm : Form
 
     // Profiles
     private readonly SurfacePanel _sidebar = new();
+    private readonly ThemedLabel _profilesCaption = UiFactory.Caption(string.Empty, 20, 24, 140);
     private readonly ProfileListBox _profileList = new();
     private readonly FlatButton _newButton = new();
     private readonly FlatButton _duplicateButton = new();
@@ -21,33 +22,47 @@ internal sealed partial class MainForm : Form
     private readonly ThemedTextBox _nameBox = new() { Font = Theme.Title };
     private readonly ThemedLabel _renameHint = UiFactory.Hint(string.Empty, 0, 0, 0);
     private readonly ThemeToggle _themeToggle = new();
+    private readonly Segmented _languageToggle = new();
 
     // Action
+    private readonly Card _actionCard = new();
+    private readonly ThemedLabel _modeLabel = UiFactory.Label(string.Empty, 20, 48, 76);
     private readonly Segmented _modeSelector = new();
-    private readonly ThemedLabel _keyLabel = UiFactory.Label("Key", 0, 0, 76);
+    private readonly ThemedLabel _keyLabel = UiFactory.Label(string.Empty, 0, 0, 76);
     private readonly KeyCaptureBox _keyBox = new();
     private readonly TextField _typeText = new() { MaxLength = Limits.MaxTypedTextLength };
-    private readonly ThemedLabel _keyHint = UiFactory.Hint("Esc clears", 0, 0, 72);
+    private readonly ThemedLabel _keyHint = UiFactory.Hint(string.Empty, 0, 0, 72);
+    private readonly ThemedLabel _buttonLabel = UiFactory.Label(string.Empty, 20, 128, 76);
     private readonly Segmented _buttonSelector = new();
-    private readonly ThemedCheckBox _doubleClick = UiFactory.Check("Double", 0, 0, 78);
+    private readonly ThemedCheckBox _doubleClick = UiFactory.Check(string.Empty, 0, 0, 78);
+    private readonly ThemedLabel _clickAtLabel = UiFactory.Label(string.Empty, 20, 168, 76);
     private readonly Segmented _targetSelector = new();
+    private readonly ThemedLabel _pointLabel = UiFactory.Label(string.Empty, 20, 208, 76);
     private readonly NumberBox _xInput =
         UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
     private readonly NumberBox _yInput =
         UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
     private readonly FlatButton _captureButton = new();
+    private readonly ThemedLabel _scatterLabel = UiFactory.Label(string.Empty, 20, 248, 76);
     private readonly NumberBox _scatter =
         UiFactory.Numeric(0, 0, 84, Limits.MinScatter, Limits.MaxScatter, 0);
+    private readonly ThemedLabel _scatterHint = UiFactory.Hint(string.Empty, 192, 248, 170);
 
     // Timing
+    private readonly Card _timingCard = new();
+    private readonly ThemedLabel _keyDelayHint = UiFactory.Hint(string.Empty, 20, 44, 320);
     private readonly DelayEditor _keyDelay = new();
+    private readonly ThemedLabel _clickDelayHint = UiFactory.Hint(string.Empty, 20, 112, 320);
     private readonly DelayEditor _clickDelay = new();
+    private readonly ThemedLabel _startDelayLabel = UiFactory.Label(string.Empty, 20, 186, 88);
     private readonly NumberBox _startDelay = UiFactory.Numeric(
         0, 0, 84, Limits.MinStartDelaySeconds, Limits.MaxStartDelaySeconds, 3);
+    private readonly ThemedLabel _startDelayHint = UiFactory.Hint(string.Empty, 206, 186, 156);
 
     // Repeat
+    private readonly Card _repeatCard = new();
     private readonly Segmented _repeatSelector = new();
-    private readonly ThemedLabel _repeatLabel = UiFactory.Label("Iterations", 0, 0, 88);
+    private readonly ThemedLabel _repeatLabel = UiFactory.Label(string.Empty, 0, 0, 88);
     private readonly ThemedLabel _repeatHint = UiFactory.Hint(string.Empty, 0, 0, 0);
     private readonly NumberBox _repetitions =
         UiFactory.Numeric(0, 0, 118, Limits.MinRepetitions, Limits.MaxRepetitions, 100);
@@ -55,18 +70,25 @@ internal sealed partial class MainForm : Form
         UiFactory.Numeric(0, 0, 118, Limits.MinDurationMinutes, Limits.MaxDurationMinutes, 5);
 
     // Hotkeys
+    private readonly Card _hotkeyCard = new();
+    private readonly ThemedLabel _startHotkeyLabel = UiFactory.Label(string.Empty, 20, 50, 88);
     private readonly KeyCaptureBox _startHotkeyBox = new();
+    private readonly ThemedLabel _pauseHotkeyLabel = UiFactory.Label(string.Empty, 20, 90, 88);
     private readonly KeyCaptureBox _pauseHotkeyBox = new();
+    private readonly ThemedLabel _stopHotkeyLabel = UiFactory.Label(string.Empty, 20, 130, 88);
     private readonly KeyCaptureBox _stopHotkeyBox = new();
+    private readonly ThemedLabel _pickHotkeyLabel = UiFactory.Label(string.Empty, 20, 170, 88);
     private readonly KeyCaptureBox _pickHotkeyBox = new();
 
     // Window options
+    private readonly Card _windowCard = new();
     private readonly ThemedCheckBox _alwaysOnTop = UiFactory.Check(string.Empty, 0, 0, 320);
     private readonly ThemedCheckBox _hideToTray = UiFactory.Check(string.Empty, 0, 0, 320);
     private readonly ThemedCheckBox _autoStart = UiFactory.Check(string.Empty, 0, 0, 320);
     private readonly ThemedCheckBox _failsafe = UiFactory.Check(string.Empty, 0, 0, 320);
 
     // Remote (phone) control
+    private readonly Card _remoteCard = new();
     private readonly ThemedCheckBox _remoteEnabled = UiFactory.Check(string.Empty, 0, 0, 320);
     private readonly ThemedLabel _remoteStatus = UiFactory.Label(string.Empty, 0, 0, 0, Theme.MonoSmall, TextRole.Secondary);
     private readonly RemoteControlServer _remote = new();
@@ -90,7 +112,7 @@ internal sealed partial class MainForm : Form
     private string? _pendingStopReason;
     private RunProgress? _lastProgress;
     private long? _remoteTarget;
-    private string _remoteMessage = "Ready";
+    private string? _remoteMessage;
     private readonly bool _startMinimized;
     private bool _shownOnce;
     private bool _loading;
@@ -156,7 +178,8 @@ internal sealed partial class MainForm : Form
 
         // Apply before the first paint, then let ThemeManager keep the tree in sync.
         Theme.Apply(_store.Appearance);
-        ThemeManager.Attach(this);
+        Loc.Apply(_store.Language);
+        ThemeManager.Attach(this, ApplyLanguage);
 
         _loading = true;
         _alwaysOnTop.Checked = _store.AlwaysOnTop;
@@ -165,6 +188,7 @@ internal sealed partial class MainForm : Form
         // The registry, not a stored flag, is the source of truth — see StartupManager.
         _autoStart.Checked = StartupManager.IsEnabled();
         _remoteEnabled.Checked = _store.RemoteControlEnabled;
+        _languageToggle.SelectedIndex = (int)_store.Language;
         _loading = false;
         TopMost = _store.AlwaysOnTop;
 
@@ -176,7 +200,7 @@ internal sealed partial class MainForm : Form
         UpdateRemoteStatusLabel();
 
         ReloadProfileList(_store.SelectedIndex);
-        _runPanel.SetIdleMessage("Ready");
+        _runPanel.SetIdleMessage(Loc.Ready);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -231,15 +255,28 @@ internal sealed partial class MainForm : Form
     private void BuildTray()
     {
         _tray.Icon = AppIcon.Idle;
-        _tray.Text = "ClickerBot";
         _tray.DoubleClick += (_, _) => RestoreFromTray();
+    }
 
+    /// <summary>
+    /// Rebuilt fresh rather than kept as named fields: a tray context menu is only ever
+    /// opened, never referenced, so there is nothing to gain by holding onto the individual
+    /// items the way every visible control's field is held. Called from
+    /// <see cref="ApplyLanguage"/>, which already runs once at startup and again on every
+    /// switch — see <see cref="ThemeManager.Attach"/> — so this needs no subscription of
+    /// its own to keep in sync, and nothing extra to unhook on close either.
+    /// </summary>
+    private void RebuildTrayMenu()
+    {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Show ClickerBot", null, (_, _) => RestoreFromTray());
+        menu.Items.Add(Loc.TrayShow, null, (_, _) => RestoreFromTray());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Stop run", null, (_, _) => StopAutomation());
-        menu.Items.Add("Quit", null, (_, _) => Close());
+        menu.Items.Add(Loc.TrayStopRun, null, (_, _) => StopAutomation());
+        menu.Items.Add(Loc.TrayQuit, null, (_, _) => Close());
+
+        var old = _tray.ContextMenuStrip;
         _tray.ContextMenuStrip = menu;
+        old?.Dispose();
     }
 
     private void RestoreFromTray()
@@ -288,7 +325,7 @@ internal sealed partial class MainForm : Form
             _autoStart.Checked = !requested;
             _loading = false;
 
-            _runPanel.SetIdleMessage("Could not change startup setting: " + ex.Message, TextRole.Danger);
+            _runPanel.SetIdleMessage(Loc.CouldNotChangeStartup(ex.Message), TextRole.Danger);
         }
     }
 
@@ -343,7 +380,7 @@ internal sealed partial class MainForm : Form
     {
         if (!_remote.IsRunning)
         {
-            _remoteStatus.Text = "Off";
+            _remoteStatus.Text = Loc.RemoteOff;
             _remoteStatus.Cursor = Cursors.Default;
             return;
         }
@@ -362,7 +399,7 @@ internal sealed partial class MainForm : Form
 
         string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{RemoteControlServer.Port}/";
         Clipboard.SetText(url);
-        _runPanel.SetIdleMessage("Copied the remote address to the clipboard");
+        _runPanel.SetIdleMessage(Loc.RemoteCopiedMessage);
     }
 
     /// <summary>
@@ -384,13 +421,13 @@ internal sealed partial class MainForm : Form
             _lastProgress?.Iteration ?? 0,
             running ? _remoteTarget : null,
             _lastProgress?.Elapsed.TotalSeconds ?? 0,
-            running ? string.Empty : _remoteMessage);
+            running ? string.Empty : _remoteMessage ?? Loc.Ready);
     }
 
     private void UpdateTray(bool running)
     {
         _tray.Icon = AppIcon.For(running);
-        _tray.Text = running ? $"ClickerBot — running \"{_current.Name}\"" : "ClickerBot";
+        _tray.Text = running ? Loc.TrayRunning(_current.Name) : Loc.TrayIdle;
         Icon = _tray.Icon;
     }
 
@@ -403,6 +440,94 @@ internal sealed partial class MainForm : Form
         ScheduleSave();
     }
 
+    // --- Language ----------------------------------------------------------
+
+    private void SetLanguage(Language language)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        Loc.Apply(language);
+        _store.Language = language;
+        ScheduleSave();
+    }
+
+    /// <summary>
+    /// Every static string this window shows, freshly read from <see cref="Loc"/>. Run once
+    /// at startup and again on every language switch — see <see cref="ThemeManager.Attach"/>,
+    /// which calls it and then walks the tree the same way a theme switch does, so this can
+    /// set text without worrying about repaint timing or flicker.
+    ///
+    /// Text that is computed straight from state on every paint — the tray tooltip, a card's
+    /// live run status, a history row's outcome — reads <see cref="Loc"/> directly at the
+    /// point it is drawn instead, and needs no entry here.
+    /// </summary>
+    private void ApplyLanguage()
+    {
+        _renameHint.Text = Loc.RenameHint;
+
+        _profilesCaption.Text = Loc.ProfilesCaption;
+        _newButton.Text = Loc.NewProfile;
+        _duplicateButton.Text = Loc.Duplicate;
+        _deleteButton.Text = Loc.Delete;
+        _importButton.Text = Loc.Import;
+        _exportButton.Text = Loc.Export;
+        _historyButton.Text = Loc.History;
+
+        _actionCard.Title = Loc.ActionCardTitle;
+        _modeLabel.Text = Loc.ModeLabel;
+        _modeSelector.Items = Loc.ModeItems;
+        _keyBox.Placeholder = Loc.KeyPlaceholder;
+        _keyHint.Text = Loc.EscClears;
+        _buttonLabel.Text = Loc.ButtonLabel;
+        _buttonSelector.Items = Loc.MouseButtonItems;
+        _doubleClick.Text = Loc.DoubleClick;
+        _clickAtLabel.Text = Loc.ClickAtLabel;
+        _targetSelector.Items = Loc.ClickTargetItems;
+        _pointLabel.Text = Loc.PointLabel;
+        _captureButton.Text = Loc.Pick;
+        _scatterLabel.Text = Loc.ScatterLabel;
+        _scatterHint.Text = Loc.ScatterHint;
+
+        _timingCard.Title = Loc.TimingCardTitle;
+        _keyDelayHint.Text = Loc.KeyDelayHint;
+        _clickDelayHint.Text = Loc.ClickDelayHint;
+        _startDelayLabel.Text = Loc.StartDelayLabel;
+        _startDelayHint.Text = Loc.StartDelayHint;
+
+        _repeatCard.Title = Loc.RepeatCardTitle;
+        _repeatSelector.Items = Loc.RepeatItems;
+
+        _hotkeyCard.Title = Loc.HotkeysCardTitle;
+        _startHotkeyLabel.Text = Loc.Start;
+        _pauseHotkeyLabel.Text = Loc.Pause;
+        _stopHotkeyLabel.Text = Loc.Stop;
+        _pickHotkeyLabel.Text = Loc.PickPoint;
+        _startHotkeyBox.Placeholder = Loc.NotSet;
+        _pauseHotkeyBox.Placeholder = Loc.NotSet;
+        _stopHotkeyBox.Placeholder = Loc.NotSet;
+        _pickHotkeyBox.Placeholder = Loc.NotSet;
+
+        _windowCard.Title = Loc.WindowCardTitle;
+        _alwaysOnTop.Text = Loc.AlwaysOnTop;
+        _hideToTray.Text = Loc.HideToTray;
+        _autoStart.Text = Loc.AutoStart;
+        _failsafe.Text = Loc.Failsafe;
+
+        _remoteCard.Title = Loc.RemoteCardTitle;
+        _remoteEnabled.Text = Loc.RemoteEnabledCheck;
+
+        RebuildTrayMenu();
+        UpdateTray(IsRunning);
+
+        // State-dependent text (the Key/Text swap, the Iterations/Minutes swap, the remote
+        // status line) is re-derived rather than duplicated here.
+        UpdateControlStates();
+        UpdateRemoteStatusLabel();
+    }
+
     // --- Profile handling -----------------------------------------------
 
     private void ReloadProfileList(int selectIndex)
@@ -411,7 +536,7 @@ internal sealed partial class MainForm : Form
         // nothing to clamp to. The app is never without a profile, so restore that first.
         if (_store.Profiles.Count == 0)
         {
-            _store.Profiles.Add(new Profile { Name = "Default" });
+            _store.Profiles.Add(new Profile { Name = Loc.DefaultProfileName });
         }
 
         _suspendSelection = true;
@@ -477,28 +602,28 @@ internal sealed partial class MainForm : Form
 
     private void CreateProfile()
     {
-        var profile = new Profile { Name = _store.CreateUniqueName("New profile") };
+        var profile = new Profile { Name = _store.CreateUniqueName(Loc.NewProfile) };
         _store.Profiles.Add(profile);
         ReloadProfileList(_store.Profiles.Count - 1);
         _nameBox.Focus();
         _nameBox.SelectAll();
-        _runPanel.SetIdleMessage($"Created \"{profile.Name}\"");
+        _runPanel.SetIdleMessage(Loc.CreatedProfile(profile.Name));
     }
 
     private void DuplicateProfile()
     {
         var copy = _current.Clone();
-        copy.Name = _store.CreateUniqueName(_current.Name + " copy");
+        copy.Name = _store.CreateUniqueName(_current.Name + Loc.CopySuffix);
         _store.Profiles.Add(copy);
         ReloadProfileList(_store.Profiles.Count - 1);
-        _runPanel.SetIdleMessage($"Duplicated to \"{copy.Name}\"");
+        _runPanel.SetIdleMessage(Loc.DuplicatedProfile(copy.Name));
     }
 
     private void DeleteProfile()
     {
         if (_store.Profiles.Count == 1)
         {
-            _runPanel.SetIdleMessage("At least one profile is required", TextRole.Danger);
+            _runPanel.SetIdleMessage(Loc.AtLeastOneProfileRequired, TextRole.Danger);
             return;
         }
 
@@ -511,8 +636,8 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        bool confirmed = ConfirmDialog.Ask(this, "Delete profile",
-            $"\"{_current.Name}\" will be removed. This cannot be undone.", "Delete", destructive: true);
+        bool confirmed = ConfirmDialog.Ask(this, Loc.DeleteProfileTitle,
+            Loc.DeleteProfileMessage(_current.Name), Loc.Delete, destructive: true);
         if (!confirmed)
         {
             return;
@@ -521,15 +646,15 @@ internal sealed partial class MainForm : Form
         string name = _current.Name;
         _store.Profiles.RemoveAt(index);
         ReloadProfileList(Math.Max(0, index - 1));
-        _runPanel.SetIdleMessage($"Deleted \"{name}\"");
+        _runPanel.SetIdleMessage(Loc.DeletedProfile(name));
     }
 
     private void ImportProfiles()
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Import profiles",
-            Filter = "ClickerBot profiles (*.json)|*.json|All files (*.*)|*.*",
+            Title = Loc.ImportDialogTitle,
+            Filter = $"{Loc.ProfilesFilterName} (*.json)|*.json|{Loc.AllFilesFilterName} (*.*)|*.*",
         };
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -540,7 +665,7 @@ internal sealed partial class MainForm : Form
         var imported = ProfileStore.ReadProfiles(dialog.FileName);
         if (imported is null)
         {
-            _runPanel.SetIdleMessage("That file does not contain any profiles", TextRole.Danger);
+            _runPanel.SetIdleMessage(Loc.NoProfilesInFile, TextRole.Danger);
             return;
         }
 
@@ -554,16 +679,15 @@ internal sealed partial class MainForm : Form
 
         ReloadProfileList(_store.Profiles.Count - 1);
         SaveNow();
-        _runPanel.SetIdleMessage(
-            imported.Count == 1 ? "Imported 1 profile" : $"Imported {imported.Count} profiles");
+        _runPanel.SetIdleMessage(Loc.ImportedProfiles(imported.Count));
     }
 
     private void ExportProfiles()
     {
         using var dialog = new SaveFileDialog
         {
-            Title = "Export profiles",
-            Filter = "ClickerBot profiles (*.json)|*.json",
+            Title = Loc.ExportDialogTitle,
+            Filter = $"{Loc.ProfilesFilterName} (*.json)|*.json",
             FileName = "clickerbot-profiles.json",
         };
 
@@ -575,11 +699,11 @@ internal sealed partial class MainForm : Form
         try
         {
             _store.ExportTo(dialog.FileName);
-            _runPanel.SetIdleMessage($"Exported {_store.Profiles.Count} profiles");
+            _runPanel.SetIdleMessage(Loc.ExportedProfiles(_store.Profiles.Count));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _runPanel.SetIdleMessage("Could not write that file: " + ex.Message, TextRole.Danger);
+            _runPanel.SetIdleMessage(Loc.CouldNotWriteFile(ex.Message), TextRole.Danger);
         }
     }
 
@@ -602,7 +726,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        _current.Name = _store.CreateUniqueName("Untitled");
+        _current.Name = _store.CreateUniqueName(Loc.UntitledProfileName);
         _nameBox.Text = _current.Name;
         _profileList.Invalidate();
     }
@@ -648,10 +772,10 @@ internal sealed partial class MainForm : Form
         // to each other.
         var assignments = new[]
         {
-            (Box: _startHotkeyBox, Name: "Start", Current: _current.StartHotkey),
-            (Box: _pauseHotkeyBox, Name: "Pause", Current: _current.PauseHotkey),
-            (Box: _stopHotkeyBox, Name: "Stop", Current: _current.StopHotkey),
-            (Box: _pickHotkeyBox, Name: "Pick point", Current: _current.PickHotkey),
+            (Box: _startHotkeyBox, Name: Loc.Start, Current: _current.StartHotkey),
+            (Box: _pauseHotkeyBox, Name: Loc.Pause, Current: _current.PauseHotkey),
+            (Box: _stopHotkeyBox, Name: Loc.Stop, Current: _current.StopHotkey),
+            (Box: _pickHotkeyBox, Name: Loc.PickPoint, Current: _current.PickHotkey),
         };
 
         foreach (var (box, _, previous) in assignments)
@@ -666,8 +790,7 @@ internal sealed partial class MainForm : Form
 
             if (clash.Box is not null)
             {
-                _runPanel.SetIdleMessage(
-                    $"{KeyNames.Describe(box.Key)} is already the {clash.Name} hotkey", TextRole.Danger);
+                _runPanel.SetIdleMessage(Loc.HotkeyClash(KeyNames.Describe(box.Key), clash.Name), TextRole.Danger);
 
                 _loading = true;
                 box.Key = previous;
@@ -701,7 +824,7 @@ internal sealed partial class MainForm : Form
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _runPanel.SetIdleMessage("Could not save profiles: " + ex.Message, TextRole.Danger);
+            _runPanel.SetIdleMessage(Loc.CouldNotSaveProfiles(ex.Message), TextRole.Danger);
         }
     }
 
@@ -724,15 +847,14 @@ internal sealed partial class MainForm : Form
             }
         }
 
-        Assign(StartHotkeyName, _current.StartHotkey, "start");
-        Assign(PauseHotkeyName, _current.PauseHotkey, "pause");
-        Assign(StopHotkeyName, _current.StopHotkey, "stop");
-        Assign(PickHotkeyName, _current.PickHotkey, "pick point");
+        Assign(StartHotkeyName, _current.StartHotkey, Loc.Start);
+        Assign(PauseHotkeyName, _current.PauseHotkey, Loc.Pause);
+        Assign(StopHotkeyName, _current.StopHotkey, Loc.Stop);
+        Assign(PickHotkeyName, _current.PickHotkey, Loc.PickPoint);
 
         if (unavailable.Count > 0)
         {
-            _runPanel.SetIdleMessage(
-                "Already used by another app: " + string.Join(", ", unavailable), TextRole.Danger);
+            _runPanel.SetIdleMessage(Loc.HotkeyUnavailable(string.Join(", ", unavailable)), TextRole.Danger);
         }
     }
 
@@ -762,7 +884,7 @@ internal sealed partial class MainForm : Form
         Point position = Cursor.Position;
         _xInput.Value = position.X;
         _yInput.Value = position.Y;
-        _runPanel.SetIdleMessage($"Click point set to {position.X}, {position.Y}");
+        _runPanel.SetIdleMessage(Loc.ClickPointSet(position.X, position.Y));
     }
 
     private void StartAutomation()
@@ -821,12 +943,12 @@ internal sealed partial class MainForm : Form
     {
         if (_current.UsesText && string.IsNullOrEmpty(_current.Text))
         {
-            return "Type something first: click the text field and enter what to type";
+            return Loc.BlockerNoText;
         }
 
         if (_current.UsesKey && _current.Key == Keys.None)
         {
-            return "Pick a key first: click the key field, then press any key";
+            return Loc.BlockerNoKey;
         }
 
         if (!_current.UsesKey)
@@ -839,17 +961,17 @@ internal sealed partial class MainForm : Form
         // of the click target the run is aiming at.
         var conflicts = new (Keys Key, string Name)[]
         {
-            (_current.StopHotkey, "Stop"),
-            (_current.StartHotkey, "Start"),
-            (_current.PauseHotkey, "Pause"),
-            (_current.PickHotkey, "Pick point"),
+            (_current.StopHotkey, Loc.Stop),
+            (_current.StartHotkey, Loc.Start),
+            (_current.PauseHotkey, Loc.Pause),
+            (_current.PickHotkey, Loc.PickPoint),
         };
 
         foreach (var (key, name) in conflicts)
         {
             if (key != Keys.None && key == _current.Key)
             {
-                return $"{KeyNames.Describe(_current.Key)} is also the {name} hotkey — choose another key";
+                return Loc.KeyIsHotkey(KeyNames.Describe(_current.Key), name);
             }
         }
 
@@ -896,18 +1018,21 @@ internal sealed partial class MainForm : Form
             }
         });
 
+        // Kept in canonical English regardless of the active language: this is what lands in
+        // history.json and the phone API's raw message, and HistoryListBox matches its color
+        // against these same constants. Loc.DescribeOutcome renders it for display, below.
         string outcome;
         TextRole role;
 
         try
         {
             await AutomationRunner.RunAsync(settings, pause, progress, token);
-            outcome = isTest ? "Test complete" : "Finished";
+            outcome = isTest ? Loc.OutcomeTestComplete : Loc.OutcomeFinished;
             role = TextRole.Success;
         }
         catch (OperationCanceledException)
         {
-            outcome = _pendingStopReason ?? "Stopped";
+            outcome = _pendingStopReason ?? Loc.OutcomeStopped;
             role = TextRole.Secondary;
         }
         catch (Exception ex)
@@ -940,7 +1065,7 @@ internal sealed partial class MainForm : Form
             SystemSounds.Asterisk.Play();
         }
 
-        _remoteMessage = outcome;
+        _remoteMessage = Loc.DescribeOutcome(outcome);
 
         if (!isTest)
         {
@@ -956,7 +1081,7 @@ internal sealed partial class MainForm : Form
             SaveHistory();
         }
 
-        _runPanel.EndRun(outcome, role);
+        _runPanel.EndRun(Loc.DescribeOutcome(outcome), role);
         UpdateControlStates();
     }
 
@@ -1010,7 +1135,7 @@ internal sealed partial class MainForm : Form
 
         if (!isOwnTarget)
         {
-            StopAutomation("Stopped — the mouse touched a screen corner");
+            StopAutomation(Loc.OutcomeFailsafeStopped);
         }
     }
 
@@ -1059,7 +1184,7 @@ internal sealed partial class MainForm : Form
         // card keeps its shape, so switching modes never makes the layout jump. The key field
         // and the text field are the one exception — TypeText needs a whole line box rather
         // than a key-capture field, so that row swaps which control occupies it instead.
-        _keyLabel.Text = _current.UsesText ? "Text" : "Key";
+        _keyLabel.Text = _current.UsesText ? Loc.TextWord : Loc.KeyWord;
         _keyBox.Visible = !_current.UsesText;
         _keyBox.Enabled = _current.UsesKey;
         _keyHint.Visible = !_current.UsesText;
@@ -1085,13 +1210,13 @@ internal sealed partial class MainForm : Form
         _repetitions.Visible = byCount;
         _duration.Visible = byDuration;
         _repeatLabel.Visible = byCount || byDuration;
-        _repeatLabel.Text = byCount ? "Iterations" : "Minutes";
+        _repeatLabel.Text = byCount ? Loc.IterationsLabel : Loc.MinutesLabel;
 
         _repeatHint.Text = _current.Repeat switch
         {
-            RepeatMode.Count => "The run ends once it has done this many iterations.",
-            RepeatMode.Duration => "The run ends after this long. Paused time does not count.",
-            _ => "The run keeps going until you stop it.",
+            RepeatMode.Count => Loc.RepeatHintCount,
+            RepeatMode.Duration => Loc.RepeatHintDuration,
+            _ => Loc.RepeatHintForever,
         };
 
         _runPanel.SetStartEnabled(!running);

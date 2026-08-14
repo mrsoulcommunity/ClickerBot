@@ -4,7 +4,7 @@ namespace ClickerBot;
 /// Edits one <see cref="DelaySetting"/>: a fixed value, or a random min–max range
 /// when "Random" is ticked. Used for both delays in the timing card.
 /// </summary>
-internal sealed class DelayEditor : Panel, IThemedControl
+internal sealed class DelayEditor : Panel, IThemedControl, ILocalizedControl
 {
     private const int MinDelay = Limits.MinDelayMs;
     private const int MaxDelay = Limits.MaxDelayMs;
@@ -26,6 +26,7 @@ internal sealed class DelayEditor : Panel, IThemedControl
         Font = Theme.Base;
 
         _dash.TextAlign = ContentAlignment.MiddleCenter;
+        _dash.FollowsReadingDirection = false;
         _dash.Height = 32;
         _unit.Height = 32;
 
@@ -78,6 +79,12 @@ internal sealed class DelayEditor : Panel, IThemedControl
 
     // The panel is transparent; children restyle themselves through the tree walk.
     public void ApplyTheme() => Invalidate();
+
+    public void ApplyLanguage()
+    {
+        _random.Text = Loc.RandomCheck;
+        _dash.Text = Loc.DelayTo;
+    }
 
     private void ApplyMode()
     {

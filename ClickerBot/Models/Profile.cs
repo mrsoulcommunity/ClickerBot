@@ -6,7 +6,7 @@ namespace ClickerBot;
 /// </summary>
 internal sealed class Profile
 {
-    public string Name { get; set; } = "New profile";
+    public string Name { get; set; } = Loc.NewProfile;
 
     /// <summary>Whether an iteration presses a key, clicks, or does both.</summary>
     public ActionMode Mode { get; set; } = ActionMode.KeyAndClick;
@@ -110,7 +110,7 @@ internal sealed class Profile
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            Name = "Untitled";
+            Name = Loc.UntitledProfileName;
         }
 
         Mode = Enum.IsDefined(Mode) ? Mode : ActionMode.KeyAndClick;

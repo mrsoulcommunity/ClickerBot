@@ -9,7 +9,7 @@ namespace ClickerBot;
 /// as geometry rather than glyphs so the control does not depend on an icon font being
 /// present.
 /// </summary>
-internal sealed class ThemeToggle : Control, IThemedControl
+internal sealed class ThemeToggle : Control, IThemedControl, ILocalizedControl
 {
     private const int AnimationMs = 170;
     private const int FrameMs = 15;
@@ -51,6 +51,8 @@ internal sealed class ThemeToggle : Control, IThemedControl
 
         Invalidate();
     }
+
+    public void ApplyLanguage() => UpdateTooltip();
 
     protected override void Dispose(bool disposing)
     {
@@ -229,5 +231,5 @@ internal sealed class ThemeToggle : Control, IThemedControl
     }
 
     private void UpdateTooltip() =>
-        _tip.SetToolTip(this, Theme.IsDark ? "Switch to light mode" : "Switch to dark mode");
+        _tip.SetToolTip(this, Theme.IsDark ? Loc.SwitchToLightMode : Loc.SwitchToDarkMode);
 }

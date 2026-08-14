@@ -30,6 +30,7 @@ Built with .NET 8 and Windows Forms — every control is custom-drawn, so the in
 - [🎯 Usage](#-usage)
 - [📱 Mobile control](#-mobile-control)
 - [🎨 Appearance](#-appearance)
+- [🌐 Language](#-language)
 - [🔷 Icon and logo](#-icon-and-logo)
 - [⌨️ Hotkeys](#️-hotkeys)
 - [🗂️ Profiles and data storage](#️-profiles-and-data-storage)
@@ -73,6 +74,7 @@ Built with .NET 8 and Windows Forms — every control is custom-drawn, so the in
 | **Sound when you're not looking** | Plays a system sound when a run ends while the window is hidden or unfocused — silent if you're already watching it finish. |
 | **Auto-save** | Changes are persisted to disk automatically a moment after you make them — nothing to remember to save. |
 | **Light & dark themes** | One click on the header switch, with an animated transition. The title bar follows too. See [Appearance](#-appearance). |
+| **🌐 English & Persian (فارسی)** | A switch beside the theme toggle translates the entire window, including the phone page — with correct right-to-left layout on the phone page. See [Language](#-language). |
 | **High-DPI aware** | Per-monitor V2 DPI awareness, so the UI stays sharp on scaled and mixed-DPI displays. |
 
 ---
@@ -170,6 +172,26 @@ Three controls are drawn from scratch instead of using the framework versions, b
 
 ---
 
+## 🌐 Language
+
+The **EN / فا** switch next to the theme toggle translates the whole window — every card, label, hint, dialog, and status message — between English and Persian. The mobile control page translates with it: open it after switching to Persian and it arrives right-to-left, with its own layout mirrored rather than just its words swapped.
+
+<p align="center">
+  <img src="ClickerBot/Assets/screenshots/app-persian.png" width="70%" alt="ClickerBot's full window in Persian, right-aligned labels throughout" />
+</p>
+
+<p align="center">
+  <img src="ClickerBot/Assets/screenshots/remote-persian-lock.png" width="32%" alt="Mobile control page in Persian — right-to-left PIN entry screen" />
+  <img src="ClickerBot/Assets/screenshots/remote-persian-running.png" width="32%" alt="Mobile control page in Persian — a run in progress, right-to-left layout" />
+</p>
+
+- **First run** matches whatever display language Windows itself is already set to; everyone else defaults to English.
+- **Your choice is remembered** the same way the theme is — an application-wide setting, untouched by switching profiles.
+- **Numbers and key names stay put.** Hotkey names (`F7`, `Enter`, `Esc`…), coordinates, milliseconds, and PIN digits are always Western numerals and Latin key names in both languages — the same reasoning as the mono readouts elsewhere in the app: a measurement isn't prose to translate.
+- **The desktop window keeps its layout.** Only the words change; cards, fields, and buttons stay exactly where they are in either language. The phone page is different — a browser mirrors plain CSS safely, so it gets a real right-to-left layout, not just right-aligned text.
+
+---
+
 ## 🔷 Icon and logo
 
 The mark is a capture reticle — four corner brackets, echoing the app's own Pick-point feature — around a single indicator dot. The reticle never changes; only the dot does, exactly matching the run panel's own rule that color marks the running state and nothing else does. Idle, the dot is a flat grey. Running, it lights amber with a soft glow. The mobile page's own hero lamp is the same mark, so a run looks like the same run whichever screen you're watching it from.
@@ -204,7 +226,7 @@ All four hotkeys must be distinct from each other, and from the automated key wh
 
 ## 🗂️ Profiles and data storage
 
-Profiles hold every configurable value: the mode, key or typed text, mouse button, click target and scatter, both delay settings, the start delay, the repeat mode, and all four hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme and the window options (always-on-top, hide-to-tray, the failsafe toggle, mobile control) are stored alongside them but apply to the whole application rather than to a single profile.
+Profiles hold every configurable value: the mode, key or typed text, mouse button, click target and scatter, both delay settings, the start delay, the repeat mode, and all four hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme, the language, and the window options (always-on-top, hide-to-tray, the failsafe toggle, mobile control) are stored alongside them but apply to the whole application rather than to a single profile.
 
 Everything is stored as indented JSON at:
 
@@ -247,7 +269,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   ├── AppIcon.ico            # Compiled .exe's file icon (idle state, multi-resolution)
 │   │   ├── logo.png               # README art (lit state)
 │   │   ├── logo-idle.png          # README art (idle state)
-│   │   └── screenshots/           # README screenshots (app + mobile control)
+│   │   └── screenshots/           # README screenshots (app + mobile control, EN + FA)
 │   ├── Automation/
 │   │   ├── AutomationRunner.cs   # The async action loop: mode-aware, pausable, time-or-count bounded
 │   │   └── RunProgress.cs        # Run phase snapshot + the pause gate the UI holds
@@ -259,6 +281,7 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   ├── Models/
 │   │   ├── ActionMode.cs         # Mode / button / repeat-mode / click-target enums
 │   │   ├── DelaySetting.cs       # Fixed or random-range delay
+│   │   ├── Language.cs           # English / Persian
 │   │   ├── Limits.cs             # The valid range of every numeric setting
 │   │   ├── Profile.cs            # One named configuration
 │   │   ├── ProfileStore.cs       # JSON load/save, plus import/export
@@ -285,6 +308,8 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   │   ├── ThemedCheckBox.cs   # Owner-drawn checkbox
 │   │   │   ├── ThemedLabel.cs      # Label that stores a role, not a color
 │   │   │   └── ThemedTextBox.cs    # Palette-aware text box
+│   │   ├── Localization/
+│   │   │   └── Loc.cs              # Every interface string, in both languages
 │   │   ├── Theming/
 │   │   │   ├── Palette.cs          # One complete set of colors
 │   │   │   ├── Theme.cs            # Active palette, fonts, drawing helpers
@@ -332,6 +357,8 @@ Each wait calls `DelaySetting.Next()`, so a randomized delay produces a differen
 **The failsafe** is checked outside `AutomationRunner` entirely, on the same 100ms UI timer that already repaints the cadence strip: if the real cursor is within a pixel of any corner of `SystemInformation.VirtualScreen`, the run is cancelled with a reason that overrides the ordinary "Stopped" message — unless that corner happens to be the profile's own configured click point, since a run is allowed to legitimately park the cursor there between clicks.
 
 **Mobile control** runs on `System.Net.HttpListener`, bound to `127.0.0.1` and each of the machine's real LAN IPv4 addresses individually — never a wildcard prefix, which is what would require administrator rights on Windows. `MainForm` hands it three callbacks (`GetStatus`, `RequestStart`, `RequestStop`); since the listener answers requests on its own background threads, every one of those callbacks marshals back onto the UI thread — `Invoke` for the status read, which needs a return value, `BeginInvoke` for start/stop, which don't. The PIN is regenerated with `RandomNumberGenerator` each time the server starts and compared in constant time, so a failed guess can't be timed to narrow down the right one.
+
+**Language** mirrors the theme's own architecture: `Loc` exposes every string as a property and raises `Changed` when `Apply` switches languages, the same shape as `Theme`. `ThemeManager.Attach` already walks the control tree on a theme switch with painting suspended so the change lands in one frame; it now does the same walk on a language switch, calling an `ApplyLanguage()` on every control that implements `ILocalizedControl` and, for the window itself, a callback `MainForm` supplies. The mobile page takes a different path: since it is plain HTML re-served on every request rather than a long-lived control tree, `RemoteControlServer` just fills a handful of `__TOKEN__` placeholders and a labels object from `Loc.Current` each time the page is requested, and sets `dir="rtl"` — safe to mirror for real there, since a browser handles that natively; the desktop side deliberately does not attempt it, since mirroring fifteen owner-drawn GDI+ controls by hand is a much larger risk for the same benefit.
 
 Extended keys (arrows, `Insert`, `Delete`, `Home`, `End`, `Page Up`/`Page Down`, numpad `/`, right `Ctrl`/`Alt`, and others) are flagged with `KEYEVENTF_EXTENDEDKEY` so target applications receive them correctly.
 

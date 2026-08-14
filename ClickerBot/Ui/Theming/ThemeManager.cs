@@ -12,6 +12,17 @@ internal interface IThemedControl
 }
 
 /// <summary>
+/// Implemented by controls that carry their own translatable text — a button, a delay
+/// editor's "Random"/"to" labels — as opposed to text <see cref="MainForm"/> sets directly on
+/// a field it owns. <see cref="ApplyLanguage"/> is called once at startup and again after
+/// every language switch, the same way <see cref="IThemedControl.ApplyTheme"/> is for colors.
+/// </summary>
+internal interface ILocalizedControl
+{
+    void ApplyLanguage();
+}
+
+/// <summary>
 /// Pushes the active <see cref="Theme"/> through a form's control tree.
 ///
 /// Owner-drawn controls only need a repaint, but stock controls hold their colors in
@@ -25,15 +36,29 @@ internal static class ThemeManager
 
     /// <summary>
     /// Applies the current theme to <paramref name="form"/> and keeps it in sync until the
-    /// form is disposed.
+    /// form is disposed. <paramref name="applyLanguage"/>, if given, is run once immediately
+    /// and again on every language switch, each time followed by the same flicker-free
+    /// tree-walk a theme switch gets — a language change is a lot of <c>.Text</c> assignments
+    /// in quick succession, and it deserves the same single-frame redraw suspension.
     /// </summary>
-    public static void Attach(Form form)
+    public static void Attach(Form form, Action? applyLanguage = null)
     {
-        void Handler() => Refresh(form);
+        void ThemeHandler() => Refresh(form);
+        void LanguageHandler()
+        {
+            applyLanguage?.Invoke();
+            Refresh(form);
+        }
 
-        Theme.Changed += Handler;
-        form.Disposed += (_, _) => Theme.Changed -= Handler;
+        Theme.Changed += ThemeHandler;
+        Loc.Changed += LanguageHandler;
+        form.Disposed += (_, _) =>
+        {
+            Theme.Changed -= ThemeHandler;
+            Loc.Changed -= LanguageHandler;
+        };
 
+        applyLanguage?.Invoke();
         Refresh(form);
     }
 
@@ -75,6 +100,11 @@ internal static class ThemeManager
             if (child is IThemedControl themed)
             {
                 themed.ApplyTheme();
+            }
+
+            if (child is ILocalizedControl localized)
+            {
+                localized.ApplyLanguage();
             }
 
             child.Invalidate();

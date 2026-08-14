@@ -21,10 +21,10 @@ internal static class ActionModeNames
 {
     public static string Describe(ActionMode mode) => mode switch
     {
-        ActionMode.KeyAndClick => "Key + click",
-        ActionMode.KeyOnly => "Key only",
-        ActionMode.ClickOnly => "Click only",
-        ActionMode.TypeText => "Type text",
+        ActionMode.KeyAndClick => Loc.IsPersian ? "کلید + کلیک" : "Key + click",
+        ActionMode.KeyOnly => Loc.IsPersian ? "فقط کلید" : "Key only",
+        ActionMode.ClickOnly => Loc.IsPersian ? "فقط کلیک" : "Click only",
+        ActionMode.TypeText => Loc.IsPersian ? "تایپ متن" : "Type text",
         _ => mode.ToString(),
     };
 }

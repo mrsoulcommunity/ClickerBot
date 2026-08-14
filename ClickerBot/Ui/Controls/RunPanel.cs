@@ -9,7 +9,7 @@ namespace ClickerBot;
 /// settings above can stay still. The readouts are monospace and fixed-width by design — a
 /// counter that reflows as it counts is unreadable at a glance.
 /// </summary>
-internal sealed class RunPanel : Card
+internal sealed class RunPanel : Card, ILocalizedControl
 {
     // A fixed composition, so the rows are named rather than derived from Height: a status
     // row with the lamp and the live readouts, then a transport row with the rhythm strip
@@ -42,7 +42,7 @@ internal sealed class RunPanel : Card
     private int _countdown;
     private long? _target;
     private TimeSpan? _window;
-    private string _message = "Ready";
+    private string _message = string.Empty;
     private TextRole _messageRole = TextRole.Secondary;
 
     public RunPanel()
@@ -53,10 +53,10 @@ internal sealed class RunPanel : Card
         _meter.SetBounds(Edge, MeterTop, 300, MeterHeight);
         Controls.Add(_meter);
 
-        Configure(_test, "Test", ButtonKind.Secondary);
-        Configure(_start, "Start", ButtonKind.Primary);
-        Configure(_pause, "Pause", ButtonKind.Secondary);
-        Configure(_stop, "Stop", ButtonKind.Secondary);
+        Configure(_test, ButtonKind.Secondary);
+        Configure(_start, ButtonKind.Primary);
+        Configure(_pause, ButtonKind.Secondary);
+        Configure(_stop, ButtonKind.Secondary);
 
         _test.Click += (_, _) => TestRequested?.Invoke(this, EventArgs.Empty);
         _start.Click += (_, _) => StartRequested?.Invoke(this, EventArgs.Empty);
@@ -208,9 +208,9 @@ internal sealed class RunPanel : Card
 
         var columns = new (string Label, string Value)[]
         {
-            ("ITERATIONS", _target is { } total ? $"{_iteration:N0} / {total:N0}" : $"{_iteration:N0}"),
-            ("ELAPSED", Format(_elapsed)),
-            ("RATE", rate),
+            (Loc.IterationsCaption, _target is { } total ? $"{_iteration:N0} / {total:N0}" : $"{_iteration:N0}"),
+            (Loc.ElapsedCaption, Format(_elapsed)),
+            (Loc.RateCaption, rate),
         };
 
         // Right-aligned as a block, so the numbers sit in a stable column instead of drifting
@@ -289,13 +289,13 @@ internal sealed class RunPanel : Card
         {
             (_message, _messageRole) = _phase switch
             {
-                RunPhase.CountingDown => ($"Starting in {_countdown}…", TextRole.Accent),
-                RunPhase.Paused => ("Paused", TextRole.Primary),
-                _ => ("Running", TextRole.Accent),
+                RunPhase.CountingDown => (Loc.StartingIn(_countdown), TextRole.Accent),
+                RunPhase.Paused => (Loc.PausedStatus, TextRole.Primary),
+                _ => (Loc.Running, TextRole.Accent),
             };
         }
 
-        _pause.Text = _phase == RunPhase.Paused && _running ? "Resume" : "Pause";
+        _pause.Text = _phase == RunPhase.Paused && _running ? Loc.Resume : Loc.Pause;
         _pause.Enabled = _running;
         _pause.Kind = _phase == RunPhase.Paused && _running ? ButtonKind.Primary : ButtonKind.Secondary;
         _stop.Enabled = _running;
@@ -310,9 +310,26 @@ internal sealed class RunPanel : Card
         ? $"{(int)value.TotalHours}:{value.Minutes:00}:{value.Seconds:00}"
         : $"{value.Minutes:00}:{value.Seconds:00}";
 
-    private static void Configure(FlatButton button, string text, ButtonKind kind)
+    private static void Configure(FlatButton button, ButtonKind kind)
     {
-        button.Text = text;
         button.Kind = kind;
+    }
+
+    public void ApplyLanguage()
+    {
+        _test.Text = Loc.Test;
+        _start.Text = Loc.Start;
+        _stop.Text = Loc.Stop;
+        _pause.Text = _phase == RunPhase.Paused && _running ? Loc.Resume : Loc.Pause;
+
+        // Anything phase-derived corrects itself on the next progress report; the idle
+        // message would not get one, so it is reset here instead.
+        if (!_running)
+        {
+            _message = Loc.Ready;
+            _messageRole = TextRole.Secondary;
+        }
+
+        Invalidate();
     }
 }

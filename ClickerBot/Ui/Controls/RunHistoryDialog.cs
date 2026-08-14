@@ -40,10 +40,12 @@ internal sealed class HistoryListBox : ListBox, IThemedControl
 
         var row = new Rectangle(e.Bounds.X + 20, e.Bounds.Y, e.Bounds.Width - 40, e.Bounds.Height);
 
+        // Matched against the English form MainForm always stores, regardless of which
+        // language is active when the entry is drawn — see Loc.DescribeOutcome.
         Color outcomeColor = entry.Outcome switch
         {
-            "Finished" or "Test complete" => Theme.Success,
-            _ when entry.Outcome.StartsWith("Stopped", StringComparison.Ordinal) => Theme.TextSecondary,
+            Loc.OutcomeFinished or Loc.OutcomeTestComplete => Theme.Success,
+            _ when entry.Outcome.StartsWith(Loc.OutcomeStopped, StringComparison.Ordinal) => Theme.TextSecondary,
             _ => Theme.Danger,
         };
 
@@ -53,12 +55,12 @@ internal sealed class HistoryListBox : ListBox, IThemedControl
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
         var outcomeArea = new Rectangle(row.Right - 150, row.Y + 8, 150, 20);
-        TextRenderer.DrawText(g, entry.Outcome, Theme.Base, outcomeArea, outcomeColor,
+        TextRenderer.DrawText(g, Loc.DescribeOutcome(entry.Outcome), Theme.Base, outcomeArea, outcomeColor,
             TextFormatFlags.Right | TextFormatFlags.VerticalCenter |
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
         string detail = $"{entry.StartedAt.LocalDateTime:g} · {FormatElapsed(entry.Elapsed)} · " +
-            $"{entry.Iterations:N0} iteration{(entry.Iterations == 1 ? "" : "s")} · {ActionModeNames.Describe(entry.Mode)}";
+            $"{Loc.IterationsCount(entry.Iterations)} · {ActionModeNames.Describe(entry.Mode)}";
         var detailArea = new Rectangle(row.X, row.Y + 30, row.Width, 18);
         TextRenderer.DrawText(g, detail, Theme.Small, detailArea, Theme.TextSecondary,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
@@ -95,7 +97,7 @@ internal sealed class RunHistoryDialog : Form
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                  ControlStyles.OptimizedDoubleBuffer, true);
 
-        Text = "Run history";
+        Text = Loc.RunHistoryTitle;
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false;
@@ -107,7 +109,7 @@ internal sealed class RunHistoryDialog : Form
         BackColor = Theme.Background;
         Font = Theme.Base;
 
-        var titleLabel = new ThemedLabel { Text = "Run history", Font = Theme.Title };
+        var titleLabel = new ThemedLabel { Text = Loc.RunHistoryTitle, Font = Theme.Title };
         titleLabel.SetBounds(28, 24, ClientSize.Width - 56, 28);
         Controls.Add(titleLabel);
 
@@ -116,19 +118,20 @@ internal sealed class RunHistoryDialog : Form
 
         _empty = new ThemedLabel
         {
-            Text = "No runs yet — start one and it will show up here.",
+            Text = Loc.RunHistoryEmpty,
             Role = TextRole.Secondary,
             TextAlign = ContentAlignment.MiddleCenter,
+            FollowsReadingDirection = false,
         };
         _empty.SetBounds(24, 64, ClientSize.Width - 48, ClientSize.Height - 140);
         Controls.Add(_empty);
 
-        _clear = new FlatButton { Text = "Clear history", Kind = ButtonKind.Danger };
+        _clear = new FlatButton { Text = Loc.ClearHistoryButton, Kind = ButtonKind.Danger };
         _clear.SetBounds(24, ClientSize.Height - 58, 150, 38);
         _clear.Click += (_, _) => ClearHistory(owner);
         Controls.Add(_clear);
 
-        var close = new FlatButton { Text = "Close", Kind = ButtonKind.Primary, DialogResult = DialogResult.OK };
+        var close = new FlatButton { Text = Loc.Close, Kind = ButtonKind.Primary, DialogResult = DialogResult.OK };
         close.SetBounds(ClientSize.Width - 144, ClientSize.Height - 58, 120, 38);
         Controls.Add(close);
 
@@ -152,8 +155,8 @@ internal sealed class RunHistoryDialog : Form
             return;
         }
 
-        bool confirmed = ConfirmDialog.Ask(owner, "Clear history",
-            "Every entry will be removed. This cannot be undone.", "Clear", destructive: true);
+        bool confirmed = ConfirmDialog.Ask(owner, Loc.ClearHistoryButton,
+            Loc.ClearHistoryMessage, Loc.ClearConfirm, destructive: true);
         if (!confirmed)
         {
             return;
