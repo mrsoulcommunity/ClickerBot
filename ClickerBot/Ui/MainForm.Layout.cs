@@ -8,6 +8,12 @@ namespace ClickerBot;
 /// of setting cards, and a run bar pinned across the bottom. Everything that moves while a
 /// run is in flight lives in that bar, so the settings above it can hold still.
 ///
+/// The step detail card is the one exception to "each control has one place": <see
+/// cref="MainForm.ShowStepFields"/> repositions a shared pool of row controls every time the
+/// selected step's kind changes, since which fields a step needs depends on its kind and the
+/// list of kinds is too long for each to own a fixed row of its own. The bounds set here for
+/// those controls are just a safe starting size — ShowStepFields is what actually places them.
+///
 /// No control here is given its real text: every field is built with an empty string and
 /// filled in by <see cref="MainForm.ApplyLanguage"/>, which runs immediately after this and
 /// again on every language switch. That keeps the words in exactly one place instead of
@@ -16,13 +22,13 @@ namespace ClickerBot;
 /// </summary>
 internal sealed partial class MainForm
 {
-    private const int WindowWidth = 1060;
-    private const int WindowHeight = 850;
+    private const int WindowWidth = 1200;
+    private const int WindowHeight = 990;
 
     private const int RailWidth = 252;
     private const int ColumnLeft = 276;
-    private const int ColumnRight = 666;
-    private const int CardWidth = 374;
+    private const int ColumnRight = 736;
+    private const int CardWidth = 444;
     private const int Gutter = 16;
 
     private void BuildUi()
@@ -45,8 +51,8 @@ internal sealed partial class MainForm
 
         BuildRail();
         BuildHeader();
-        BuildActionCard();
-        BuildTimingCard();
+        BuildStepsCard();
+        BuildStepDetailCard();
         BuildRepeatCard();
         BuildHotkeyCard();
         BuildWindowCard();
@@ -112,128 +118,173 @@ internal sealed partial class MainForm
         // Not translated relative to each other, the way no language switch ever translates
         // its own labels — see Loc's class comment.
         _languageToggle.Items = new[] { "EN", "فا" };
-        _languageToggle.Location = new Point(910, 21);
+        _languageToggle.Location = new Point(1050, 21);
         _languageToggle.Size = new Size(64, 30);
         _languageToggle.SelectedIndexChanged += (_, _) => SetLanguage((Language)_languageToggle.SelectedIndex);
         Controls.Add(_languageToggle);
 
-        _themeToggle.Location = new Point(982, 21);
+        _themeToggle.Location = new Point(1122, 21);
         _themeToggle.ModeRequested += SetTheme;
         Controls.Add(_themeToggle);
     }
 
-    private void BuildActionCard()
+    private void BuildStepsCard()
     {
-        Card card = _actionCard;
-        ConfigureCard(card, ColumnLeft, 72, 290);
+        Card card = _stepsCard;
+        ConfigureCard(card, ColumnLeft, 72, 430);
 
-        card.Controls.Add(_modeLabel);
-        // Order matches ActionMode's declaration order exactly, since the index is cast
-        // straight to the enum in OnSettingChanged — see Loc.ModeItems.
-        _modeSelector.SetBounds(100, 42, 254, 30);
-        _modeSelector.SelectedIndexChanged += OnSettingChanged;
-        card.Controls.Add(_modeSelector);
+        _stepList.SetBounds(20, 40, 404, 340);
+        _stepList.SelectedIndexChanged += StepList_SelectedIndexChanged;
+        card.Controls.Add(_stepList);
 
-        _keyLabel.SetBounds(20, 88, 76, 20);
-        card.Controls.Add(_keyLabel);
+        _noStepsLabel.SetBounds(20, 40, 404, 340);
+        _noStepsLabel.TextAlign = ContentAlignment.MiddleCenter;
+        card.Controls.Add(_noStepsLabel);
 
-        _keyBox.SetBounds(100, 82, 174, 32);
-        _keyBox.KeyValueChanged += OnSettingChanged;
-        card.Controls.Add(_keyBox);
+        const int ToolbarTop = 388;
+        Configure(_moveUpButton, ButtonKind.Secondary, 20, ToolbarTop, 36, 32);
+        _moveUpButton.Click += (_, _) => MoveStepUp();
 
-        _keyHint.SetBounds(282, 88, 72, 20);
-        card.Controls.Add(_keyHint);
+        Configure(_moveDownButton, ButtonKind.Secondary, 60, ToolbarTop, 36, 32);
+        _moveDownButton.Click += (_, _) => MoveStepDown();
 
-        // Occupies the same row as the key field — only one of the two is ever visible, since
-        // a profile either presses a key or types text, never both. See UpdateControlStates.
-        _typeText.SetBounds(100, 82, 254, 32);
-        _typeText.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_typeText);
+        Configure(_deleteStepButton, ButtonKind.Danger, 104, ToolbarTop, 90, 32);
+        _deleteStepButton.Click += (_, _) => DeleteStep();
 
-        card.Controls.Add(_buttonLabel);
-        _buttonSelector.SetBounds(100, 122, 174, 30);
-        _buttonSelector.SelectedIndexChanged += OnSettingChanged;
-        card.Controls.Add(_buttonSelector);
+        Configure(_recordButton, ButtonKind.Secondary, 226, ToolbarTop, 90, 32);
+        _recordButton.Click += (_, _) => ToggleRecording();
 
-        _doubleClick.SetBounds(284, 125, 78, 24);
-        _doubleClick.CheckedChanged += OnSettingChanged;
-        card.Controls.Add(_doubleClick);
+        Configure(_addStepButton, ButtonKind.Primary, 324, ToolbarTop, 100, 32);
+        _addStepButton.Click += (_, _) => AddStep();
 
-        card.Controls.Add(_clickAtLabel);
-        _targetSelector.SetBounds(100, 162, 210, 30);
-        _targetSelector.SelectedIndexChanged += OnSettingChanged;
-        card.Controls.Add(_targetSelector);
-
-        card.Controls.Add(_pointLabel);
-        _xInput.SetBounds(100, 202, 84, 32);
-        _yInput.SetBounds(190, 202, 84, 32);
-        _xInput.ValueChanged += OnSettingChanged;
-        _yInput.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_xInput);
-        card.Controls.Add(_yInput);
-
-        Configure(_captureButton, ButtonKind.Secondary, 282, 203, 72, 30);
-        _captureButton.Font = Theme.Base;
-        _captureButton.Click += (_, _) => CaptureCursorPosition();
-        card.Controls.Add(_captureButton);
-
-        card.Controls.Add(_scatterLabel);
-        _scatter.SetBounds(100, 242, 84, 32);
-        _scatter.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_scatter);
-        card.Controls.Add(_scatterHint);
+        card.Controls.AddRange(new Control[]
+        {
+            _moveUpButton, _moveDownButton, _deleteStepButton, _recordButton, _addStepButton,
+        });
     }
 
-    private void BuildTimingCard()
+    private void BuildStepDetailCard()
     {
-        Card card = _timingCard;
-        ConfigureCard(card, ColumnRight, 72, 228);
+        Card card = _stepDetailCard;
+        ConfigureCard(card, ColumnRight, 72, 280);
 
-        card.Controls.Add(_keyDelayHint);
-        _keyDelay.Location = new Point(20, 64);
-        _keyDelay.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_keyDelay);
+        _noStepSelectedLabel.SetBounds(20, 40, 300, 20);
+        card.Controls.Add(_noStepSelectedLabel);
 
-        card.Controls.Add(_clickDelayHint);
-        _clickDelay.Location = new Point(20, 132);
-        _clickDelay.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_clickDelay);
+        _kindSelector.SetBounds(20, 36, 240, 28);
+        _kindSelector.SelectedIndexChanged += KindSelector_SelectedIndexChanged;
+        card.Controls.Add(_kindSelector);
 
-        card.Controls.Add(_startDelayLabel);
-        _startDelay.SetBounds(114, 180, 84, 32);
-        _startDelay.ValueChanged += OnSettingChanged;
-        card.Controls.Add(_startDelay);
-        card.Controls.Add(_startDelayHint);
+        Configure(_testStepButton, ButtonKind.Secondary, 272, 34, 90, 30);
+        _testStepButton.Click += (_, _) => TestStep();
+        card.Controls.Add(_testStepButton);
+
+        // Row controls: every one of these is repositioned per step kind by ShowStepFields,
+        // so only their change events and starting sizes are set here.
+        _stepKeyBox.KeyValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepButtonSelector.SelectedIndexChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepDoubleClick.CheckedChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepTargetSelector.SelectedIndexChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepXInput.ValueChanged += (_, _) => SyncStepFieldsToModel();
+        _stepYInput.ValueChanged += (_, _) => SyncStepFieldsToModel();
+        Configure(_stepPickButton, ButtonKind.Secondary, 0, 0, 72, 30);
+        _stepPickButton.Font = Theme.Base;
+        _stepPickButton.Click += (_, _) => PickStepPoint();
+
+        _stepScatter.ValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepToXInput.ValueChanged += (_, _) => SyncStepFieldsToModel();
+        _stepToYInput.ValueChanged += (_, _) => SyncStepFieldsToModel();
+        Configure(_stepPickToButton, ButtonKind.Secondary, 0, 0, 72, 30);
+        _stepPickToButton.Font = Theme.Base;
+        _stepPickToButton.Click += (_, _) => PickStepDragTo();
+
+        _stepDragDuration.ValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepTextField.ValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepDelayEditor.ValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepColorSwatch.BorderStyle = BorderStyle.FixedSingle;
+        Configure(_stepCaptureColorButton, ButtonKind.Secondary, 0, 0, 90, 32);
+        _stepCaptureColorButton.Click += (_, _) => CaptureStepColor();
+
+        _stepTolerance.ValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        _stepTimeout.ValueChanged += (_, _) => SyncStepFieldsToModel();
+
+        card.Controls.AddRange(new Control[]
+        {
+            _stepKeyLabel, _stepKeyBox, _stepKeyHint,
+            _stepButtonLabel, _stepButtonSelector, _stepDoubleClick,
+            _stepTargetLabel, _stepTargetSelector,
+            _stepPointLabel, _stepXInput, _stepYInput, _stepPickButton,
+            _stepScatterLabel, _stepScatter, _stepScatterHint,
+            _stepToLabel, _stepToXInput, _stepToYInput, _stepPickToButton,
+            _stepDragDurationLabel, _stepDragDuration, _stepDragDurationHint,
+            _stepTextLabel, _stepTextField,
+            _stepDelayEditor,
+            _stepColorLabel, _stepColorSwatch, _stepCaptureColorButton,
+            _stepToleranceLabel, _stepTolerance, _stepToleranceHint,
+            _stepTimeoutLabel, _stepTimeout, _stepTimeoutHint,
+            _stepClipboardHint,
+        });
     }
 
     private void BuildRepeatCard()
     {
         Card card = _repeatCard;
-        ConfigureCard(card, ColumnRight, 310, 170);
+        ConfigureCard(card, ColumnRight, 368, 260);
 
-        _repeatSelector.SetBounds(20, 42, 334, 30);
+        _repeatSelector.SetBounds(20, 42, 404, 30);
         _repeatSelector.SelectedIndexChanged += OnSettingChanged;
         card.Controls.Add(_repeatSelector);
 
-        _repeatLabel.SetBounds(20, 88, 88, 20);
+        _repeatLabel.SetBounds(20, 86, 88, 20);
         card.Controls.Add(_repeatLabel);
 
-        _repetitions.SetBounds(114, 82, 118, 32);
+        _repetitions.SetBounds(114, 80, 118, 32);
         _repetitions.ValueChanged += OnSettingChanged;
         card.Controls.Add(_repetitions);
 
-        _duration.SetBounds(114, 82, 118, 32);
+        _duration.SetBounds(114, 80, 118, 32);
         _duration.ValueChanged += OnSettingChanged;
         card.Controls.Add(_duration);
 
-        _repeatHint.SetBounds(20, 126, 334, 20);
+        _repeatHint.SetBounds(20, 116, 404, 18);
         card.Controls.Add(_repeatHint);
+
+        _startDelayLabel.SetBounds(20, 150, 88, 20);
+        card.Controls.Add(_startDelayLabel);
+
+        _startDelay.SetBounds(114, 144, 84, 32);
+        _startDelay.ValueChanged += OnSettingChanged;
+        card.Controls.Add(_startDelay);
+
+        _startDelayHint.SetBounds(206, 150, 218, 20);
+        card.Controls.Add(_startDelayHint);
+
+        _restrictWindowCheck.SetBounds(20, 184, 404, 24);
+        _restrictWindowCheck.CheckedChanged += RestrictWindowCheck_CheckedChanged;
+        card.Controls.Add(_restrictWindowCheck);
+
+        _windowTitleField.SetBounds(20, 214, 300, 32);
+        _windowTitleField.ValueChanged += WindowTitleField_ValueChanged;
+        card.Controls.Add(_windowTitleField);
+
+        Configure(_useCurrentWindowButton, ButtonKind.Secondary, 328, 214, 96, 32);
+        _useCurrentWindowButton.Click += (_, _) => BeginCaptureWindowTitle();
+        card.Controls.Add(_useCurrentWindowButton);
     }
 
     private void BuildHotkeyCard()
     {
         Card card = _hotkeyCard;
-        ConfigureCard(card, ColumnLeft, 378, 216);
+        ConfigureCard(card, ColumnLeft, 518, 216);
 
         AddHotkeyRow(card, _startHotkeyLabel, _startHotkeyBox, 44);
         AddHotkeyRow(card, _pauseHotkeyLabel, _pauseHotkeyBox, 84);
@@ -252,7 +303,7 @@ internal sealed partial class MainForm
     private void BuildWindowCard()
     {
         Card card = _windowCard;
-        ConfigureCard(card, ColumnRight, 496, 190);
+        ConfigureCard(card, ColumnRight, 644, 190);
 
         _alwaysOnTop.SetBounds(20, 40, 334, 24);
         _alwaysOnTop.CheckedChanged += (_, _) => ApplyWindowOptions();
@@ -274,11 +325,12 @@ internal sealed partial class MainForm
     /// <summary>
     /// Not built through <see cref="ConfigureCard"/>: everything else in the left column locks
     /// while a run is active, but this card is exactly how you would stop or check on a run
-    /// started from a phone, so it stays live on purpose. Sits in the gap Hotkeys leaves below it.
+    /// started from a phone, so it stays live on purpose. Sits in the gap the hotkeys card
+    /// leaves below it.
     /// </summary>
     private void BuildRemoteCard()
     {
-        _remoteCard.SetBounds(ColumnLeft, 610, CardWidth, 84);
+        _remoteCard.SetBounds(ColumnLeft, 750, CardWidth, 84);
         Controls.Add(_remoteCard);
         _cards.Add(_remoteCard);
 
@@ -293,7 +345,7 @@ internal sealed partial class MainForm
 
     private void BuildRunPanel()
     {
-        _runPanel.SetBounds(ColumnLeft, 710, (CardWidth * 2) + Gutter, 120);
+        _runPanel.SetBounds(ColumnLeft, 850, (CardWidth * 2) + Gutter, 120);
         _runPanel.TestRequested += (_, _) => TestAction();
         _runPanel.StartRequested += (_, _) => StartAutomation();
         _runPanel.PauseRequested += (_, _) => TogglePause();

@@ -73,15 +73,107 @@ internal static class NativeInput
                 $"(error {Marshal.GetLastWin32Error()}).");
         }
 
-        var (down, up) = button switch
-        {
-            ClickButton.Right => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
-            ClickButton.Middle => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
-            _ => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
-        };
-
+        var (down, up) = ButtonFlags(button);
         Send(new[] { CreateMouseInput(down), CreateMouseInput(up) });
     }
+
+    /// <summary>
+    /// Presses <paramref name="button"/> at <paramref name="from"/>, travels to
+    /// <paramref name="to"/>, and releases — a real drag rather than a teleport, which is what
+    /// some target applications require to recognize it as one. Travelling in steps over
+    /// <paramref name="durationMs"/> is what makes that motion visible rather than instantaneous;
+    /// zero jumps straight there.
+    ///
+    /// Awaited between steps rather than blocked on <see cref="Thread.Sleep"/>, because the
+    /// automation loop that calls this runs its continuations on the UI thread — a blocking
+    /// sleep here would freeze the whole window for up to
+    /// <see cref="Limits.MaxDragDurationMs"/>. The button is released from a <c>finally</c> so
+    /// cancelling a drag mid-motion — Stop, mid-drag — can never leave it physically held down
+    /// on the real system.
+    /// </summary>
+    public static async Task DragAsync(
+        ClickButton button, Point from, Point to, int durationMs, CancellationToken cancellationToken)
+    {
+        if (!SetCursorPos(from.X, from.Y))
+        {
+            throw new InvalidOperationException(
+                $"Could not move the cursor to {from.X}, {from.Y} " +
+                $"(error {Marshal.GetLastWin32Error()}).");
+        }
+
+        var (down, up) = ButtonFlags(button);
+        Send(new[] { CreateMouseInput(down) });
+
+        try
+        {
+            const int FrameMs = 15;
+            if (durationMs > 0 && from != to)
+            {
+                int steps = Math.Max(1, durationMs / FrameMs);
+                for (int i = 1; i <= steps; i++)
+                {
+                    double t = (double)i / steps;
+                    SetCursorPos(
+                        from.X + (int)Math.Round((to.X - from.X) * t),
+                        from.Y + (int)Math.Round((to.Y - from.Y) * t));
+                    await Task.Delay(FrameMs, cancellationToken).ConfigureAwait(true);
+                }
+            }
+            else
+            {
+                SetCursorPos(to.X, to.Y);
+            }
+        }
+        finally
+        {
+            Send(new[] { CreateMouseInput(up) });
+        }
+    }
+
+    /// <summary>Reads the color of the pixel at <paramref name="point"/> off the real screen.</summary>
+    public static Color SamplePixel(Point point)
+    {
+        using var bitmap = new Bitmap(1, 1, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.CopyFromScreen(point.X, point.Y, 0, 0, new Size(1, 1));
+        }
+
+        return bitmap.GetPixel(0, 0);
+    }
+
+    /// <summary>Places <paramref name="text"/> on the clipboard, for a following ClipboardPaste step to use.</summary>
+    public static void SetClipboardText(string text)
+    {
+        if (!string.IsNullOrEmpty(text))
+        {
+            Clipboard.SetText(text);
+        }
+    }
+
+    /// <summary>Synthesizes Ctrl+V. The two keys are nested down/down/up/up, not two separate presses, so the target sees one real combination rather than a V typed while Ctrl happens to still be down.</summary>
+    public static void PasteFromClipboard()
+    {
+        ushort ctrlScan = (ushort)MapVirtualKey((uint)Keys.ControlKey, MAPVK_VK_TO_VSC);
+        ushort vScan = (ushort)MapVirtualKey((uint)Keys.V, MAPVK_VK_TO_VSC);
+
+        var inputs = new[]
+        {
+            CreateKeyInput((ushort)Keys.ControlKey, ctrlScan, 0),
+            CreateKeyInput((ushort)Keys.V, vScan, 0),
+            CreateKeyInput((ushort)Keys.V, vScan, KEYEVENTF_KEYUP),
+            CreateKeyInput((ushort)Keys.ControlKey, ctrlScan, KEYEVENTF_KEYUP),
+        };
+
+        Send(inputs);
+    }
+
+    private static (uint Down, uint Up) ButtonFlags(ClickButton button) => button switch
+    {
+        ClickButton.Right => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
+        ClickButton.Middle => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
+        _ => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
+    };
 
     private static void Send(INPUT[] inputs)
     {

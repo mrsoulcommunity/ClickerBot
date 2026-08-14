@@ -98,15 +98,7 @@ internal static class Loc
     /// <summary>Appended to a profile's own name to build its duplicate's default name.</summary>
     public static string CopySuffix => Name(" copy", " کپی");
 
-    // --- Action card -----------------------------------------------------
-
-    public static string ActionCardTitle => T("ACTION", "عملیات");
-
-    public static string ModeLabel => T("Mode", "حالت");
-
-    public static string[] ModeItems => IsPersian
-        ? new[] { "هردو", "کلید", "کلیک", "متن" }
-        : new[] { "Both", "Key", "Click", "Text" };
+    // --- Step fields (shared across step kinds in the step editor) -------
 
     public static string KeyWord => T("Key", "کلید");
 
@@ -138,15 +130,159 @@ internal static class Loc
 
     public static string ScatterHint => T("px of random spread per click", "پیکسل پراکندگی هر کلیک");
 
-    // --- Timing card -------------------------------------------------------
+    public static string FromLabel => T("From", "از");
 
-    public static string TimingCardTitle => T("TIMING", "زمان‌بندی");
+    public static string ToLabel => T("To", "به");
 
-    public static string KeyDelayHint =>
-        T("After the key press, before the click", "بعد از فشردن کلید، پیش از کلیک");
+    public static string DragDurationLabel => T("Duration", "مدت حرکت");
 
-    public static string ClickDelayHint =>
-        T("Between one iteration and the next", "بین هر تکرار و تکرار بعدی");
+    public static string DragDurationHint =>
+        T("ms to travel between the two points (0 = instant)", "میلی‌ثانیه حرکت بین دو نقطه (0 یعنی آنی)");
+
+    public static string ColorLabel => T("Color", "رنگ");
+
+    public static string CaptureColor => T("Capture", "دریافت");
+
+    public static string ToleranceLabel => T("Tolerance", "تلورانس");
+
+    public static string ToleranceHint =>
+        T("how far a channel may drift and still match", "میزان انحراف مجاز هر کانال رنگ");
+
+    public static string TimeoutLabel => T("Timeout", "مهلت");
+
+    public static string TimeoutHint => T("seconds (0 = wait forever)", "ثانیه (0 یعنی همیشه صبر کن)");
+
+    public static string ClipboardTextLabel => T("Text to copy", "متنی که کپی شود");
+
+    public static string ClipboardPasteHint => T(
+        "Pastes whatever is on the clipboard, with Ctrl+V.", "هر‌چه در کلیپ‌بورد باشد را با Ctrl+V پیست می‌کند.");
+
+    public static string TestStep => T("Test step", "آزمایش مرحله");
+
+    // --- Steps card ----------------------------------------------------------
+
+    public static string StepsCardTitle => T("STEPS", "مراحل");
+
+    public static string AddStep => T("Add step", "افزودن مرحله");
+
+    public static string Record => T("Record", "ضبط");
+
+    public static string StopRecording => T("Stop recording", "پایان ضبط");
+
+    public static string RecordingStatus => T("Recording…", "در حال ضبط…");
+
+    public static string MoveStepUp => T("Move up", "بالا");
+
+    public static string MoveStepDown => T("Move down", "پایین");
+
+    public static string DeleteStep => T("Delete step", "حذف مرحله");
+
+    public static string NoStepsYet =>
+        T("No steps yet — add one below, or record.", "هنوز مرحله‌ای نیست — از پایین اضافه کنید یا ضبط کنید.");
+
+    public static string StepDetailCardTitle => T("STEP", "مرحله");
+
+    public static string NoStepSelected =>
+        T("Select a step from the list, or add one.", "یک مرحله از لیست انتخاب کنید، یا یکی اضافه کنید.");
+
+    public static string StepKindName(StepKind kind) => kind switch
+    {
+        StepKind.KeyPress => T("Press a key", "فشردن کلید"),
+        StepKind.Click => T("Click", "کلیک"),
+        StepKind.Drag => T("Drag", "درگ"),
+        StepKind.TypeText => T("Type text", "تایپ متن"),
+        StepKind.Wait => T("Wait", "صبر"),
+        StepKind.WaitForPixelColor => T("Wait for pixel color", "صبر برای رنگ پیکسل"),
+        StepKind.ClipboardSet => T("Set clipboard", "تنظیم کلیپ‌بورد"),
+        StepKind.ClipboardPaste => T("Paste (Ctrl+V)", "پیست (Ctrl+V)"),
+        _ => kind.ToString(),
+    };
+
+    public static string EditingKind(StepKind kind) => T($"Editing: {StepKindName(kind)}", $"در حال ویرایش: {StepKindName(kind)}");
+
+    public static string StepsCount(int count) => T($"{count} step{(count == 1 ? "" : "s")}", $"{count} مرحله");
+
+    /// <summary>
+    /// A one-line summary for a step's row in the list — the only display text in this class
+    /// built from raw interpolation instead of <see cref="T"/>, because every branch mixes
+    /// Persian words with numbers, key names, or quoted user text. Wrapped once at the end
+    /// instead, for the same reason <see cref="T"/> wraps: see its own comment.
+    /// </summary>
+    public static string DescribeStep(MacroStep step)
+    {
+        string result = step.Kind switch
+        {
+            StepKind.KeyPress => IsPersian
+                ? $"فشردن {KeyNames.Describe(step.Key)}"
+                : $"Press {KeyNames.Describe(step.Key)}",
+            StepKind.Click => DescribeClickStep(step),
+            StepKind.Drag => IsPersian
+                ? $"درگ از {step.X}, {step.Y} به {step.DragToX}, {step.DragToY}"
+                : $"Drag from {step.X}, {step.Y} to {step.DragToX}, {step.DragToY}",
+            StepKind.TypeText => IsPersian
+                ? $"تایپ «{Truncate(step.Text)}»"
+                : $"Type \"{Truncate(step.Text)}\"",
+            StepKind.Wait => IsPersian
+                ? $"صبر {DescribeDelay(step.Delay)}"
+                : $"Wait {DescribeDelay(step.Delay)}",
+            StepKind.WaitForPixelColor => IsPersian
+                ? $"صبر برای رنگ پیکسل در {step.X}, {step.Y}"
+                : $"Wait for pixel color at {step.X}, {step.Y}",
+            StepKind.ClipboardSet => IsPersian
+                ? $"تنظیم کلیپ‌بورد به «{Truncate(step.Text)}»"
+                : $"Set clipboard to \"{Truncate(step.Text)}\"",
+            StepKind.ClipboardPaste => IsPersian ? "پیست (Ctrl+V)" : "Paste (Ctrl+V)",
+            _ => step.Kind.ToString(),
+        };
+
+        return IsPersian ? Rle + result + Pdf : result;
+    }
+
+    private static string DescribeClickStep(MacroStep step)
+    {
+        string button = MouseButtonItems[(int)step.Button];
+        string where = step.Target == ClickTarget.CursorPosition
+            ? (IsPersian ? "روی مکان‌نما" : "at the cursor")
+            : (IsPersian ? $"در {step.X}, {step.Y}" : $"at {step.X}, {step.Y}");
+        string suffix = step.DoubleClick ? (IsPersian ? " (دوبار)" : " (double)") : string.Empty;
+
+        return IsPersian ? $"کلیک {button} {where}{suffix}" : $"{button} click {where}{suffix}";
+    }
+
+    private static string DescribeDelay(DelaySetting delay) => delay.UseRandom
+        ? $"{Math.Min(delay.Min, delay.Max)}–{Math.Max(delay.Min, delay.Max)} ms"
+        : $"{delay.Fixed} ms";
+
+    private static string Truncate(string text, int max = 28)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        return text.Length <= max ? text : text[..max] + "…";
+    }
+
+    // --- Window targeting (part of the Repeat card) -------------------------
+
+    public static string RestrictToWindow =>
+        T("Only run while this window is focused", "فقط وقتی این پنجره فعال است اجرا شود");
+
+    public static string WindowTitlePlaceholder => T("Window title contains…", "عنوان پنجره شامل…");
+
+    public static string UseCurrentWindow => T("Use current", "استفاده از فعلی");
+
+    /// <summary>
+    /// Shown on the "Use current" button itself while it counts down — clicking it makes
+    /// ClickerBot the foreground window, so there is no "previous window" left to capture at
+    /// the moment of the click. Switching to the intended window during a short countdown is
+    /// what lets the button still work.
+    /// </summary>
+    public static string SwitchNowCountdown(int seconds) =>
+        T($"Switch now… {seconds}", $"الان جابه‌جا شوید… {seconds}");
+
+    public static string BlockerNoSteps =>
+        T("Add at least one step first", "اول دست‌کم یک مرحله اضافه کنید");
 
     public static string StartDelayLabel => T("Start delay", "تأخیر شروع");
 
@@ -244,6 +380,8 @@ internal static class Loc
     /// <summary>The status word — "Paused" — as distinct from <see cref="Pause"/>, the button's
     /// verb. Persian uses the same phrase for both; English does not.</summary>
     public static string PausedStatus => T("Paused", "توقف موقت");
+
+    public static string WaitingForWindow => T("Waiting for the target window…", "در انتظار پنجرهٔ هدف…");
 
     public static string StartingIn(int seconds) => T($"Starting in {seconds}…", $"شروع در {seconds}…");
 

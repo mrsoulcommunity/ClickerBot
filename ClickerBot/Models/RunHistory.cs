@@ -8,7 +8,8 @@ internal sealed class RunHistoryEntry
 {
     public string ProfileName { get; set; } = string.Empty;
 
-    public ActionMode Mode { get; set; }
+    /// <summary>How many steps the macro had at the time it ran.</summary>
+    public int StepCount { get; set; }
 
     public DateTimeOffset StartedAt { get; set; }
 

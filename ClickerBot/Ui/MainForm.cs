@@ -24,42 +24,80 @@ internal sealed partial class MainForm : Form
     private readonly ThemeToggle _themeToggle = new();
     private readonly Segmented _languageToggle = new();
 
-    // Action
-    private readonly Card _actionCard = new();
-    private readonly ThemedLabel _modeLabel = UiFactory.Label(string.Empty, 20, 48, 76);
-    private readonly Segmented _modeSelector = new();
-    private readonly ThemedLabel _keyLabel = UiFactory.Label(string.Empty, 0, 0, 76);
-    private readonly KeyCaptureBox _keyBox = new();
-    private readonly TextField _typeText = new() { MaxLength = Limits.MaxTypedTextLength };
-    private readonly ThemedLabel _keyHint = UiFactory.Hint(string.Empty, 0, 0, 72);
-    private readonly ThemedLabel _buttonLabel = UiFactory.Label(string.Empty, 20, 128, 76);
-    private readonly Segmented _buttonSelector = new();
-    private readonly ThemedCheckBox _doubleClick = UiFactory.Check(string.Empty, 0, 0, 78);
-    private readonly ThemedLabel _clickAtLabel = UiFactory.Label(string.Empty, 20, 168, 76);
-    private readonly Segmented _targetSelector = new();
-    private readonly ThemedLabel _pointLabel = UiFactory.Label(string.Empty, 20, 208, 76);
-    private readonly NumberBox _xInput =
+    // Steps
+    private readonly Card _stepsCard = new();
+    private readonly StepListBox _stepList = new();
+    private readonly ThemedLabel _noStepsLabel = UiFactory.Hint(string.Empty, 0, 0, 0);
+    private readonly FlatButton _moveUpButton = new();
+    private readonly FlatButton _moveDownButton = new();
+    private readonly FlatButton _deleteStepButton = new();
+    private readonly FlatButton _recordButton = new();
+    private readonly FlatButton _addStepButton = new();
+
+    // Step detail
+    private readonly Card _stepDetailCard = new();
+    private readonly ThemedLabel _noStepSelectedLabel = UiFactory.Hint(string.Empty, 0, 0, 0);
+    private readonly ThemedComboBox _kindSelector = new();
+    private readonly FlatButton _testStepButton = new();
+
+    // Step detail — shared row controls, repositioned per StepKind by ShowStepFields.
+    private readonly ThemedLabel _stepKeyLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly KeyCaptureBox _stepKeyBox = new();
+    private readonly ThemedLabel _stepKeyHint = UiFactory.Hint(string.Empty, 0, 0, 72);
+
+    private readonly ThemedLabel _stepButtonLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly Segmented _stepButtonSelector = new();
+    private readonly ThemedCheckBox _stepDoubleClick = UiFactory.Check(string.Empty, 0, 0, 78);
+
+    private readonly ThemedLabel _stepTargetLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly Segmented _stepTargetSelector = new();
+
+    private readonly ThemedLabel _stepPointLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly NumberBox _stepXInput =
         UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
-    private readonly NumberBox _yInput =
+    private readonly NumberBox _stepYInput =
         UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
-    private readonly FlatButton _captureButton = new();
-    private readonly ThemedLabel _scatterLabel = UiFactory.Label(string.Empty, 20, 248, 76);
-    private readonly NumberBox _scatter =
+    private readonly FlatButton _stepPickButton = new();
+
+    private readonly ThemedLabel _stepScatterLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly NumberBox _stepScatter =
         UiFactory.Numeric(0, 0, 84, Limits.MinScatter, Limits.MaxScatter, 0);
-    private readonly ThemedLabel _scatterHint = UiFactory.Hint(string.Empty, 192, 248, 170);
+    private readonly ThemedLabel _stepScatterHint = UiFactory.Hint(string.Empty, 0, 0, 170);
 
-    // Timing
-    private readonly Card _timingCard = new();
-    private readonly ThemedLabel _keyDelayHint = UiFactory.Hint(string.Empty, 20, 44, 320);
-    private readonly DelayEditor _keyDelay = new();
-    private readonly ThemedLabel _clickDelayHint = UiFactory.Hint(string.Empty, 20, 112, 320);
-    private readonly DelayEditor _clickDelay = new();
-    private readonly ThemedLabel _startDelayLabel = UiFactory.Label(string.Empty, 20, 186, 88);
-    private readonly NumberBox _startDelay = UiFactory.Numeric(
-        0, 0, 84, Limits.MinStartDelaySeconds, Limits.MaxStartDelaySeconds, 3);
-    private readonly ThemedLabel _startDelayHint = UiFactory.Hint(string.Empty, 206, 186, 156);
+    private readonly ThemedLabel _stepToLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly NumberBox _stepToXInput =
+        UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
+    private readonly NumberBox _stepToYInput =
+        UiFactory.Numeric(0, 0, 84, Limits.MinCoordinate, Limits.MaxCoordinate, 0);
+    private readonly FlatButton _stepPickToButton = new();
 
-    // Repeat
+    private readonly ThemedLabel _stepDragDurationLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly NumberBox _stepDragDuration =
+        UiFactory.Numeric(0, 0, 84, Limits.MinDragDurationMs, Limits.MaxDragDurationMs, 250);
+    private readonly ThemedLabel _stepDragDurationHint = UiFactory.Hint(string.Empty, 0, 0, 220);
+
+    private readonly ThemedLabel _stepTextLabel = UiFactory.Label(string.Empty, 0, 0, 88);
+    private readonly TextField _stepTextField = new() { MaxLength = Limits.MaxTypedTextLength };
+
+    private readonly DelayEditor _stepDelayEditor = new();
+
+    private readonly ThemedLabel _stepColorLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly Panel _stepColorSwatch = new();
+    private readonly FlatButton _stepCaptureColorButton = new();
+
+    private readonly ThemedLabel _stepToleranceLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly NumberBox _stepTolerance =
+        UiFactory.Numeric(0, 0, 84, Limits.MinColorTolerance, Limits.MaxColorTolerance, 10);
+    private readonly ThemedLabel _stepToleranceHint = UiFactory.Hint(string.Empty, 0, 0, 220);
+
+    private readonly ThemedLabel _stepTimeoutLabel = UiFactory.Label(string.Empty, 0, 0, 76);
+    private readonly NumberBox _stepTimeout =
+        UiFactory.Numeric(0, 0, 84, Limits.MinPixelTimeoutSeconds, Limits.MaxPixelTimeoutSeconds, 10);
+    private readonly ThemedLabel _stepTimeoutHint = UiFactory.Hint(string.Empty, 0, 0, 220);
+
+    private readonly ThemedLabel _stepClipboardHint = UiFactory.Hint(string.Empty, 0, 0, 380);
+
+    // Repeat (also carries the start delay and window-targeting fields)
     private readonly Card _repeatCard = new();
     private readonly Segmented _repeatSelector = new();
     private readonly ThemedLabel _repeatLabel = UiFactory.Label(string.Empty, 0, 0, 88);
@@ -68,6 +106,13 @@ internal sealed partial class MainForm : Form
         UiFactory.Numeric(0, 0, 118, Limits.MinRepetitions, Limits.MaxRepetitions, 100);
     private readonly NumberBox _duration =
         UiFactory.Numeric(0, 0, 118, Limits.MinDurationMinutes, Limits.MaxDurationMinutes, 5);
+    private readonly ThemedLabel _startDelayLabel = UiFactory.Label(string.Empty, 0, 0, 88);
+    private readonly NumberBox _startDelay = UiFactory.Numeric(
+        0, 0, 84, Limits.MinStartDelaySeconds, Limits.MaxStartDelaySeconds, 3);
+    private readonly ThemedLabel _startDelayHint = UiFactory.Hint(string.Empty, 0, 0, 218);
+    private readonly ThemedCheckBox _restrictWindowCheck = UiFactory.Check(string.Empty, 0, 0, 404);
+    private readonly TextField _windowTitleField = new() { MaxLength = 200 };
+    private readonly FlatButton _useCurrentWindowButton = new();
 
     // Hotkeys
     private readonly Card _hotkeyCard = new();
@@ -101,6 +146,9 @@ internal sealed partial class MainForm : Form
 
     private readonly System.Windows.Forms.Timer _saveTimer = new() { Interval = 400 };
     private readonly System.Windows.Forms.Timer _tickTimer = new() { Interval = 100 };
+    private readonly System.Windows.Forms.Timer _captureWindowTimer = new() { Interval = 1000 };
+
+    private readonly MacroRecorder _recorder = new();
 
     private ProfileStore _store = new();
     private Profile _current = new();
@@ -118,6 +166,9 @@ internal sealed partial class MainForm : Form
     private bool _initialized;
     private bool _loading;
     private bool _suspendSelection;
+    private bool _suspendStepSelection;
+    private MacroStep? _selectedStep;
+    private int _captureWindowCountdown;
 
     public MainForm(bool startMinimized = false)
     {
@@ -126,15 +177,18 @@ internal sealed partial class MainForm : Form
         BuildUi();
         BuildTray();
         _saveTimer.Tick += (_, _) => SaveNow();
+        _captureWindowTimer.Tick += CaptureWindowTimer_Tick;
+        _recorder.StepCaptured += OnStepCaptured;
 
         // Repaints the cadence strip and the elapsed clock between progress reports, so a slow
-        // run still shows a moving second hand rather than looking frozen. The failsafe check
-        // rides along on the same clock rather than its own timer, since both only matter
-        // while a run is in flight.
+        // run still shows a moving second hand rather than looking frozen. The failsafe and
+        // window-focus checks ride along on the same clock rather than their own timers, since
+        // all three only matter while a run is in flight.
         _tickTimer.Tick += (_, _) =>
         {
             _runPanel.Invalidate(invalidateChildren: true);
             CheckFailsafe();
+            CheckWindowFocus();
         };
 
         // These three are invoked from the HTTP listener's own background thread, so every
@@ -172,6 +226,9 @@ internal sealed partial class MainForm : Form
     }
 
     private bool IsRunning => _cancellation is not null;
+
+    /// <summary>Either a run or a recording is in progress — the two moments Start/Test have to stay locked out for.</summary>
+    private bool IsBusy => IsRunning || _recorder.IsRecording;
 
     // --- Lifecycle ------------------------------------------------------
 
@@ -249,6 +306,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        _recorder.Stop();
         SaveNow();
         _tray.Visible = false;
         _hotkeys?.Dispose();
@@ -263,12 +321,14 @@ internal sealed partial class MainForm : Form
             // them: the timers keep callbacks alive and the hotkeys stay owned by this app.
             _saveTimer.Dispose();
             _tickTimer.Dispose();
+            _captureWindowTimer.Dispose();
             _tray.Visible = false;
             _tray.Dispose();
             _hotkeys?.Dispose();
             _hotkeys = null;
             _cancellation?.Dispose();
             _cancellation = null;
+            _recorder.Dispose();
             _remote.Dispose();
             AppIcon.Dispose();
         }
@@ -446,10 +506,15 @@ internal sealed partial class MainForm : Form
         }
 
         bool running = IsRunning;
+        int count = _current.Steps.Count;
+        // Kept bare, not through Loc.T: this rides inside the phone page's own JSON, the same
+        // reasoning that keeps its inline labels un-wrapped — see RemoteControlServer.
+        string stepSummary = Loc.IsPersian ? $"{count} مرحله" : $"{count} step{(count == 1 ? "" : "s")}";
+
         return new RemoteStatusPayload(
             running,
             _current.Name,
-            ActionModeNames.Describe(_current.Mode),
+            stepSummary,
             _lastProgress?.Iteration ?? 0,
             running ? _remoteTarget : null,
             _lastProgress?.Elapsed.TotalSeconds ?? 0,
@@ -508,29 +573,53 @@ internal sealed partial class MainForm : Form
         _exportButton.Text = Loc.Export;
         _historyButton.Text = Loc.History;
 
-        _actionCard.Title = Loc.ActionCardTitle;
-        _modeLabel.Text = Loc.ModeLabel;
-        _modeSelector.Items = Loc.ModeItems;
-        _keyBox.Placeholder = Loc.KeyPlaceholder;
-        _keyHint.Text = Loc.EscClears;
-        _buttonLabel.Text = Loc.ButtonLabel;
-        _buttonSelector.Items = Loc.MouseButtonItems;
-        _doubleClick.Text = Loc.DoubleClick;
-        _clickAtLabel.Text = Loc.ClickAtLabel;
-        _targetSelector.Items = Loc.ClickTargetItems;
-        _pointLabel.Text = Loc.PointLabel;
-        _captureButton.Text = Loc.Pick;
-        _scatterLabel.Text = Loc.ScatterLabel;
-        _scatterHint.Text = Loc.ScatterHint;
+        _stepsCard.Title = Loc.StepsCardTitle;
+        _noStepsLabel.Text = Loc.NoStepsYet;
+        _moveUpButton.Text = "▲";
+        _moveDownButton.Text = "▼";
+        _deleteStepButton.Text = Loc.DeleteStep;
+        _recordButton.Text = _recorder.IsRecording ? Loc.StopRecording : Loc.Record;
+        _addStepButton.Text = Loc.AddStep;
 
-        _timingCard.Title = Loc.TimingCardTitle;
-        _keyDelayHint.Text = Loc.KeyDelayHint;
-        _clickDelayHint.Text = Loc.ClickDelayHint;
-        _startDelayLabel.Text = Loc.StartDelayLabel;
-        _startDelayHint.Text = Loc.StartDelayHint;
+        _stepDetailCard.Title = Loc.StepDetailCardTitle;
+        _noStepSelectedLabel.Text = Loc.NoStepSelected;
+        _testStepButton.Text = Loc.TestStep;
+
+        ApplyKindSelectorItems();
+
+        _stepKeyBox.Placeholder = Loc.KeyPlaceholder;
+        _stepKeyHint.Text = Loc.EscClears;
+        _stepButtonLabel.Text = Loc.ButtonLabel;
+        _stepButtonSelector.Items = Loc.MouseButtonItems;
+        _stepDoubleClick.Text = Loc.DoubleClick;
+        _stepTargetLabel.Text = Loc.ClickAtLabel;
+        _stepTargetSelector.Items = Loc.ClickTargetItems;
+        _stepPointLabel.Text = Loc.PointLabel;
+        _stepPickButton.Text = Loc.Pick;
+        _stepScatterLabel.Text = Loc.ScatterLabel;
+        _stepScatterHint.Text = Loc.ScatterHint;
+        _stepToLabel.Text = Loc.ToLabel;
+        _stepPickToButton.Text = Loc.Pick;
+        _stepDragDurationLabel.Text = Loc.DragDurationLabel;
+        _stepDragDurationHint.Text = Loc.DragDurationHint;
+        _stepColorLabel.Text = Loc.ColorLabel;
+        _stepCaptureColorButton.Text = Loc.CaptureColor;
+        _stepToleranceLabel.Text = Loc.ToleranceLabel;
+        _stepToleranceHint.Text = Loc.ToleranceHint;
+        _stepTimeoutLabel.Text = Loc.TimeoutLabel;
+        _stepTimeoutHint.Text = Loc.TimeoutHint;
+        _stepClipboardHint.Text = Loc.ClipboardPasteHint;
 
         _repeatCard.Title = Loc.RepeatCardTitle;
         _repeatSelector.Items = Loc.RepeatItems;
+        _startDelayLabel.Text = Loc.StartDelayLabel;
+        _startDelayHint.Text = Loc.StartDelayHint;
+        _restrictWindowCheck.Text = Loc.RestrictToWindow;
+        _windowTitleField.Placeholder = Loc.WindowTitlePlaceholder;
+        if (!_captureWindowTimer.Enabled)
+        {
+            _useCurrentWindowButton.Text = Loc.UseCurrentWindow;
+        }
 
         _hotkeyCard.Title = Loc.HotkeysCardTitle;
         _startHotkeyLabel.Text = Loc.Start;
@@ -554,10 +643,26 @@ internal sealed partial class MainForm : Form
         RebuildTrayMenu();
         UpdateTray(IsRunning);
 
-        // State-dependent text (the Key/Text swap, the Iterations/Minutes swap, the remote
-        // status line) is re-derived rather than duplicated here.
+        // State-dependent text (the step-kind field layout, the Iterations/Minutes swap, the
+        // remote status line) is re-derived rather than duplicated here.
         UpdateControlStates();
         UpdateRemoteStatusLabel();
+        _stepList.Invalidate();
+    }
+
+    /// <summary>
+    /// Rebuilds the kind combo's items from <see cref="Loc.StepKindName"/> without disturbing
+    /// which one is selected: the enum's declaration order never changes, so the index a
+    /// language switch would otherwise clobber is exactly the one to restore afterwards.
+    /// </summary>
+    private void ApplyKindSelectorItems()
+    {
+        _loading = true;
+        int previous = _kindSelector.SelectedIndex;
+        _kindSelector.Items.Clear();
+        _kindSelector.Items.AddRange(Enum.GetValues<StepKind>().Select(k => (object)Loc.StepKindName(k)).ToArray());
+        _kindSelector.SelectedIndex = previous >= 0 && previous < _kindSelector.Items.Count ? previous : -1;
+        _loading = false;
     }
 
     // --- Profile handling -----------------------------------------------
@@ -601,32 +706,29 @@ internal sealed partial class MainForm : Form
     /// <summary>Makes the profile at <paramref name="index"/> current and pushes it into the UI.</summary>
     private void ApplyProfile(int index)
     {
+        if (_recorder.IsRecording)
+        {
+            ToggleRecording();
+        }
+
         _current = _store.Profiles[index];
         _store.SelectedIndex = index;
 
         _loading = true;
         _nameBox.Text = _current.Name;
-        _modeSelector.SelectedIndex = (int)_current.Mode;
-        _keyBox.Key = _current.Key;
-        _typeText.Value = _current.Text;
-        _buttonSelector.SelectedIndex = (int)_current.Button;
-        _doubleClick.Checked = _current.DoubleClick;
-        _targetSelector.SelectedIndex = (int)_current.Target;
-        _xInput.Value = _current.ClickX;
-        _yInput.Value = _current.ClickY;
-        _scatter.Value = _current.Scatter;
-        _keyDelay.Value = _current.KeyDelay;
-        _clickDelay.Value = _current.ClickDelay;
         _startDelay.Value = _current.StartDelaySeconds;
         _repeatSelector.SelectedIndex = (int)_current.Repeat;
         _repetitions.Value = _current.Repetitions;
         _duration.Value = _current.DurationMinutes;
+        _restrictWindowCheck.Checked = _current.RequireTargetWindow;
+        _windowTitleField.Value = _current.TargetWindowTitle;
         _startHotkeyBox.Key = _current.StartHotkey;
         _pauseHotkeyBox.Key = _current.PauseHotkey;
         _stopHotkeyBox.Key = _current.StopHotkey;
         _pickHotkeyBox.Key = _current.PickHotkey;
         _loading = false;
 
+        RefreshStepList(0);
         UpdateControlStates();
         RegisterHotkeys();
         ScheduleSave();
@@ -763,6 +865,295 @@ internal sealed partial class MainForm : Form
         _profileList.Invalidate();
     }
 
+    // --- Steps list -------------------------------------------------------
+
+    /// <summary>Rebuilds the step list from <see cref="_current"/>'s steps and selects <paramref name="selectIndex"/>.</summary>
+    private void RefreshStepList(int selectIndex)
+    {
+        _suspendStepSelection = true;
+        _stepList.BeginUpdate();
+        _stepList.Items.Clear();
+        foreach (var step in _current.Steps)
+        {
+            _stepList.Items.Add(step);
+        }
+
+        _stepList.EndUpdate();
+
+        bool empty = _current.Steps.Count == 0;
+        _stepList.Visible = !empty;
+        _noStepsLabel.Visible = empty;
+
+        int index = empty ? -1 : Math.Clamp(selectIndex, 0, _current.Steps.Count - 1);
+        _stepList.SelectedIndex = index;
+        _suspendStepSelection = false;
+
+        ApplySelectedStep(index);
+    }
+
+    private void StepList_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_suspendStepSelection)
+        {
+            return;
+        }
+
+        ApplySelectedStep(_stepList.SelectedIndex);
+    }
+
+    /// <summary>Loads the step at <paramref name="index"/> (or none) into the detail editor.</summary>
+    private void ApplySelectedStep(int index)
+    {
+        _selectedStep = index >= 0 && index < _current.Steps.Count ? _current.Steps[index] : null;
+
+        bool running = IsBusy;
+        bool hasSelection = _selectedStep is not null;
+        bool hasSteps = _current.Steps.Count > 0;
+
+        _moveUpButton.Enabled = !running && hasSelection && index > 0;
+        _moveDownButton.Enabled = !running && hasSelection && index < _current.Steps.Count - 1;
+        _deleteStepButton.Enabled = !running && hasSelection;
+
+        _noStepSelectedLabel.Visible = !hasSelection;
+        _kindSelector.Visible = hasSelection;
+        _testStepButton.Visible = hasSelection;
+        _testStepButton.Enabled = !running && hasSelection;
+
+        if (_selectedStep is not { } step)
+        {
+            HideAllStepFields();
+            return;
+        }
+
+        _loading = true;
+        _kindSelector.SelectedIndex = (int)step.Kind;
+        _stepKeyBox.Key = step.Key;
+        _stepButtonSelector.SelectedIndex = (int)step.Button;
+        _stepDoubleClick.Checked = step.DoubleClick;
+        _stepTargetSelector.SelectedIndex = (int)step.Target;
+        _stepXInput.Value = step.X;
+        _stepYInput.Value = step.Y;
+        _stepScatter.Value = step.Scatter;
+        _stepToXInput.Value = step.DragToX;
+        _stepToYInput.Value = step.DragToY;
+        _stepDragDuration.Value = step.DragDurationMs;
+        _stepTextField.Value = step.Text;
+        _stepDelayEditor.Value = step.Delay;
+        _stepColorSwatch.BackColor = step.TargetColor;
+        _stepTolerance.Value = step.ColorTolerance;
+        _stepTimeout.Value = step.TimeoutSeconds;
+        _loading = false;
+
+        ShowStepFields(step.Kind);
+        _ = hasSteps;
+    }
+
+    private void AddStep()
+    {
+        if (_current.Steps.Count >= Limits.MaxSteps)
+        {
+            return;
+        }
+
+        _current.Steps.Add(new MacroStep());
+        RefreshStepList(_current.Steps.Count - 1);
+        ScheduleSave();
+    }
+
+    private void MoveStepUp()
+    {
+        int index = _stepList.SelectedIndex;
+        if (index <= 0)
+        {
+            return;
+        }
+
+        (_current.Steps[index - 1], _current.Steps[index]) = (_current.Steps[index], _current.Steps[index - 1]);
+        RefreshStepList(index - 1);
+        ScheduleSave();
+    }
+
+    private void MoveStepDown()
+    {
+        int index = _stepList.SelectedIndex;
+        if (index < 0 || index >= _current.Steps.Count - 1)
+        {
+            return;
+        }
+
+        (_current.Steps[index + 1], _current.Steps[index]) = (_current.Steps[index], _current.Steps[index + 1]);
+        RefreshStepList(index + 1);
+        ScheduleSave();
+    }
+
+    private void DeleteStep()
+    {
+        int index = _stepList.SelectedIndex;
+        if (index < 0)
+        {
+            return;
+        }
+
+        _current.Steps.RemoveAt(index);
+        RefreshStepList(Math.Min(index, _current.Steps.Count - 1));
+        ScheduleSave();
+    }
+
+    private void ToggleRecording()
+    {
+        if (_recorder.IsRecording)
+        {
+            _recorder.Stop();
+            _recordButton.Text = Loc.Record;
+            _recordButton.Kind = ButtonKind.Secondary;
+            _runPanel.SetIdleMessage(Loc.Ready);
+        }
+        else
+        {
+            if (IsRunning)
+            {
+                return;
+            }
+
+            _recorder.Start();
+            _recordButton.Text = Loc.StopRecording;
+            _recordButton.Kind = ButtonKind.Danger;
+            _runPanel.SetIdleMessage(Loc.RecordingStatus, TextRole.Accent);
+        }
+
+        UpdateControlStates();
+    }
+
+    /// <summary>Appends a step the recorder just captured live. See <see cref="MacroRecorder"/>.</summary>
+    private void OnStepCaptured(MacroStep step)
+    {
+        if (_current.Steps.Count >= Limits.MaxSteps)
+        {
+            ToggleRecording();
+            return;
+        }
+
+        _current.Steps.Add(step);
+        RefreshStepList(_current.Steps.Count - 1);
+        ScheduleSave();
+    }
+
+    /// <summary>Writes every shared field back into the selected step. Kind is changed separately — see <see cref="KindSelector_SelectedIndexChanged"/>.</summary>
+    private void SyncStepFieldsToModel()
+    {
+        if (_loading || _selectedStep is not { } step)
+        {
+            return;
+        }
+
+        step.Key = _stepKeyBox.Key;
+        step.Button = (ClickButton)_stepButtonSelector.SelectedIndex;
+        step.DoubleClick = _stepDoubleClick.Checked;
+        step.Target = (ClickTarget)_stepTargetSelector.SelectedIndex;
+        step.X = _stepXInput.Value;
+        step.Y = _stepYInput.Value;
+        step.Scatter = _stepScatter.Value;
+        step.DragToX = _stepToXInput.Value;
+        step.DragToY = _stepToYInput.Value;
+        step.DragDurationMs = _stepDragDuration.Value;
+        step.Text = _stepTextField.Value;
+        step.Delay = _stepDelayEditor.Value;
+        step.ColorTolerance = _stepTolerance.Value;
+        step.TimeoutSeconds = _stepTimeout.Value;
+
+        _stepList.Invalidate();
+        ScheduleSave();
+    }
+
+    private void KindSelector_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_loading || _selectedStep is not { } step)
+        {
+            return;
+        }
+
+        step.Kind = (StepKind)_kindSelector.SelectedIndex;
+        ShowStepFields(step.Kind);
+        _stepList.Invalidate();
+        ScheduleSave();
+    }
+
+    private void PickStepPoint()
+    {
+        if (_selectedStep is not { } step)
+        {
+            return;
+        }
+
+        Point position = Cursor.Position;
+        _stepXInput.Value = position.X;
+        _stepYInput.Value = position.Y;
+
+        if (step.Kind == StepKind.WaitForPixelColor)
+        {
+            Color color = NativeInput.SamplePixel(position);
+            step.TargetColorArgb = color.ToArgb();
+            _stepColorSwatch.BackColor = color;
+        }
+
+        _runPanel.SetIdleMessage(Loc.ClickPointSet(position.X, position.Y));
+    }
+
+    private void PickStepDragTo()
+    {
+        if (_selectedStep is null)
+        {
+            return;
+        }
+
+        Point position = Cursor.Position;
+        _stepToXInput.Value = position.X;
+        _stepToYInput.Value = position.Y;
+        _runPanel.SetIdleMessage(Loc.ClickPointSet(position.X, position.Y));
+    }
+
+    private void CaptureStepColor()
+    {
+        if (_selectedStep is not { } step)
+        {
+            return;
+        }
+
+        Color color = NativeInput.SamplePixel(Cursor.Position);
+        step.TargetColorArgb = color.ToArgb();
+        _stepColorSwatch.BackColor = color;
+        ScheduleSave();
+    }
+
+    private void TestStep()
+    {
+        if (IsBusy || _selectedStep is not { } step)
+        {
+            return;
+        }
+
+        CommitPendingEdits();
+        _ = RunStepOnceAsync(step.Clone());
+    }
+
+    private async Task RunStepOnceAsync(MacroStep step)
+    {
+        _testStepButton.Enabled = false;
+
+        try
+        {
+            await AutomationRunner.RunStepOnceAsync(step, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _runPanel.SetIdleMessage(ex.Message, TextRole.Danger);
+        }
+        finally
+        {
+            _testStepButton.Enabled = !IsBusy && _selectedStep is not null;
+        }
+    }
+
     // --- Settings <-> profile -------------------------------------------
 
     private void OnSettingChanged(object? sender, EventArgs e)
@@ -772,17 +1163,6 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        _current.Mode = (ActionMode)_modeSelector.SelectedIndex;
-        _current.Key = _keyBox.Key;
-        _current.Text = _typeText.Value;
-        _current.Button = (ClickButton)_buttonSelector.SelectedIndex;
-        _current.DoubleClick = _doubleClick.Checked;
-        _current.Target = (ClickTarget)_targetSelector.SelectedIndex;
-        _current.ClickX = _xInput.Value;
-        _current.ClickY = _yInput.Value;
-        _current.Scatter = _scatter.Value;
-        _current.KeyDelay = _keyDelay.Value;
-        _current.ClickDelay = _clickDelay.Value;
         _current.StartDelaySeconds = _startDelay.Value;
         _current.Repeat = (RepeatMode)_repeatSelector.SelectedIndex;
         _current.Repetitions = _repetitions.Value;
@@ -790,6 +1170,70 @@ internal sealed partial class MainForm : Form
 
         UpdateControlStates();
         ScheduleSave();
+    }
+
+    private void RestrictWindowCheck_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _current.RequireTargetWindow = _restrictWindowCheck.Checked;
+        UpdateControlStates();
+        ScheduleSave();
+    }
+
+    private void WindowTitleField_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _current.TargetWindowTitle = _windowTitleField.Value;
+        ScheduleSave();
+    }
+
+    /// <summary>
+    /// Starts a short countdown, then captures whatever window is in front once it ends.
+    ///
+    /// Clicking this button makes ClickerBot itself the foreground window before the click
+    /// handler ever runs, so there is no "previous window" left to read at the moment of the
+    /// click — a countdown, giving time to switch to the intended window by hand, is what
+    /// makes the button able to do anything at all.
+    /// </summary>
+    private void BeginCaptureWindowTitle()
+    {
+        if (_captureWindowTimer.Enabled)
+        {
+            return;
+        }
+
+        _captureWindowCountdown = 3;
+        _useCurrentWindowButton.Enabled = false;
+        _useCurrentWindowButton.Text = Loc.SwitchNowCountdown(_captureWindowCountdown);
+        _captureWindowTimer.Start();
+    }
+
+    private void CaptureWindowTimer_Tick(object? sender, EventArgs e)
+    {
+        _captureWindowCountdown--;
+        if (_captureWindowCountdown > 0)
+        {
+            _useCurrentWindowButton.Text = Loc.SwitchNowCountdown(_captureWindowCountdown);
+            return;
+        }
+
+        _captureWindowTimer.Stop();
+        _useCurrentWindowButton.Enabled = _restrictWindowCheck.Checked && !IsBusy;
+        _useCurrentWindowButton.Text = Loc.UseCurrentWindow;
+
+        string title = ForegroundWindow.Title();
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            _windowTitleField.Value = title;
+        }
     }
 
     private void HotkeyBox_Changed(object? sender, EventArgs e)
@@ -894,7 +1338,7 @@ internal sealed partial class MainForm : Form
     {
         switch (name)
         {
-            case StartHotkeyName when !IsRunning:
+            case StartHotkeyName when !IsBusy:
                 StartAutomation();
                 break;
             case PauseHotkeyName when IsRunning:
@@ -903,7 +1347,7 @@ internal sealed partial class MainForm : Form
             case StopHotkeyName:
                 StopAutomation();
                 break;
-            case PickHotkeyName when !IsRunning:
+            case PickHotkeyName when !IsBusy:
                 CaptureCursorPosition();
                 break;
         }
@@ -911,17 +1355,22 @@ internal sealed partial class MainForm : Form
 
     // --- Actions ---------------------------------------------------------
 
+    /// <summary>
+    /// The Pick hotkey's target: whichever point field the selected step is currently showing.
+    /// A Drag step has two points — this always captures the "from" one, since that is the
+    /// point every other kind has just one of; the "to" point has its own button in the editor.
+    /// </summary>
     private void CaptureCursorPosition()
     {
-        Point position = Cursor.Position;
-        _xInput.Value = position.X;
-        _yInput.Value = position.Y;
-        _runPanel.SetIdleMessage(Loc.ClickPointSet(position.X, position.Y));
+        if (_selectedStep is { } step && step.Kind is StepKind.Click or StepKind.Drag or StepKind.WaitForPixelColor)
+        {
+            PickStepPoint();
+        }
     }
 
     private void StartAutomation()
     {
-        if (IsRunning)
+        if (IsBusy)
         {
             return;
         }
@@ -947,7 +1396,7 @@ internal sealed partial class MainForm : Form
     /// </summary>
     private void TestAction()
     {
-        if (IsRunning)
+        if (IsBusy)
         {
             return;
         }
@@ -973,37 +1422,45 @@ internal sealed partial class MainForm : Form
     /// <summary>The reason this profile cannot run right now, or null when it can.</summary>
     private string? Blocker()
     {
-        if (_current.UsesText && string.IsNullOrEmpty(_current.Text))
+        if (_current.Steps.Count == 0)
         {
-            return Loc.BlockerNoText;
+            return Loc.BlockerNoSteps;
         }
 
-        if (_current.UsesKey && _current.Key == Keys.None)
+        foreach (var step in _current.Steps)
         {
-            return Loc.BlockerNoKey;
-        }
-
-        if (!_current.UsesKey)
-        {
-            return null;
-        }
-
-        // A synthesized key press reaches registered hotkeys just like a real one, so a key
-        // that doubles as one turns every iteration into a Stop, a Start, or a silent rewrite
-        // of the click target the run is aiming at.
-        var conflicts = new (Keys Key, string Name)[]
-        {
-            (_current.StopHotkey, Loc.Stop),
-            (_current.StartHotkey, Loc.Start),
-            (_current.PauseHotkey, Loc.Pause),
-            (_current.PickHotkey, Loc.PickPoint),
-        };
-
-        foreach (var (key, name) in conflicts)
-        {
-            if (key != Keys.None && key == _current.Key)
+            if (step.Kind == StepKind.TypeText && string.IsNullOrEmpty(step.Text))
             {
-                return Loc.KeyIsHotkey(KeyNames.Describe(_current.Key), name);
+                return Loc.BlockerNoText;
+            }
+
+            if (step.Kind != StepKind.KeyPress)
+            {
+                continue;
+            }
+
+            if (step.Key == Keys.None)
+            {
+                return Loc.BlockerNoKey;
+            }
+
+            // A synthesized key press reaches registered hotkeys just like a real one, so a key
+            // that doubles as one turns every iteration into a Stop, a Start, or a silent
+            // rewrite of whatever the run is aiming at.
+            var conflicts = new (Keys Key, string Name)[]
+            {
+                (_current.StopHotkey, Loc.Stop),
+                (_current.StartHotkey, Loc.Start),
+                (_current.PauseHotkey, Loc.Pause),
+                (_current.PickHotkey, Loc.PickPoint),
+            };
+
+            foreach (var (key, name) in conflicts)
+            {
+                if (key != Keys.None && key == step.Key)
+                {
+                    return Loc.KeyIsHotkey(KeyNames.Describe(step.Key), name);
+                }
             }
         }
 
@@ -1104,7 +1561,7 @@ internal sealed partial class MainForm : Form
             _history.Record(new RunHistoryEntry
             {
                 ProfileName = _current.Name,
-                Mode = settings.Mode,
+                StepCount = settings.Steps.Count,
                 StartedAt = startedAt,
                 Elapsed = _lastProgress?.Elapsed ?? TimeSpan.Zero,
                 Iterations = _lastProgress?.Iteration ?? 0,
@@ -1160,14 +1617,49 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        // The run's own click target can legitimately sit on a corner; only a position the
-        // automation did not itself choose counts as reaching for the failsafe.
-        bool isOwnTarget = _current.UsesMouse && _current.Target == ClickTarget.FixedPoint &&
-            IsAtEdge(p.X, _current.ClickX) && IsAtEdge(p.Y, _current.ClickY);
+        // A run's own click or drag target can legitimately sit on a corner; only a position
+        // none of its steps chose counts as reaching for the failsafe.
+        bool isOwnTarget = _current.Steps.Any(step =>
+            (step.Kind == StepKind.Click && step.Target == ClickTarget.FixedPoint &&
+                IsAtEdge(p.X, step.X) && IsAtEdge(p.Y, step.Y)) ||
+            (step.Kind == StepKind.Drag &&
+                ((IsAtEdge(p.X, step.X) && IsAtEdge(p.Y, step.Y)) ||
+                 (IsAtEdge(p.X, step.DragToX) && IsAtEdge(p.Y, step.DragToY)))));
 
         if (!isOwnTarget)
         {
             StopAutomation(Loc.OutcomeFailsafeStopped);
+        }
+    }
+
+    /// <summary>
+    /// Keeps the run's <see cref="PauseGate"/> in sync with whether the target window is
+    /// actually in front, for profiles with <see cref="Profile.RequireTargetWindow"/> set.
+    /// Polled from the same tick timer as <see cref="CheckFailsafe"/>, never touched by the
+    /// run itself — see <see cref="PauseGate.SetWindowFocused"/>.
+    /// </summary>
+    private void CheckWindowFocus()
+    {
+        if (!IsRunning || _pause is not { } gate)
+        {
+            return;
+        }
+
+        if (!_current.RequireTargetWindow)
+        {
+            gate.SetWindowFocused(true);
+            return;
+        }
+
+        gate.SetWindowFocused(ForegroundWindow.Matches(_current.TargetWindowTitle));
+
+        if (gate.IsWaitingForWindow)
+        {
+            _runPanel.SetPhase(RunPhase.WaitingForWindow);
+        }
+        else if (!gate.IsPaused)
+        {
+            _runPanel.SetPhase(RunPhase.Running);
         }
     }
 
@@ -1183,27 +1675,190 @@ internal sealed partial class MainForm : Form
         // this side does not know them.
         if (_pause is { } gate)
         {
-            _runPanel.SetPhase(gate.IsPaused ? RunPhase.Paused : RunPhase.Running);
+            _runPanel.SetPhase(gate.IsWaitingForWindow ? RunPhase.WaitingForWindow
+                : gate.IsPaused ? RunPhase.Paused
+                : RunPhase.Running);
         }
     }
 
     private void CommitPendingEdits()
     {
-        _xInput.Commit();
-        _yInput.Commit();
-        _scatter.Commit();
         _startDelay.Commit();
         _repetitions.Commit();
         _duration.Commit();
-        _keyDelay.Commit();
-        _clickDelay.Commit();
+        _stepXInput.Commit();
+        _stepYInput.Commit();
+        _stepScatter.Commit();
+        _stepToXInput.Commit();
+        _stepToYInput.Commit();
+        _stepDragDuration.Commit();
+        _stepTolerance.Commit();
+        _stepTimeout.Commit();
+        _stepDelayEditor.Commit();
     }
 
     // --- State -----------------------------------------------------------
 
+    /// <summary>Hides every per-kind row control. <see cref="ShowStepFields"/> reveals only what the selected kind needs.</summary>
+    private void HideAllStepFields()
+    {
+        foreach (Control control in new Control[]
+        {
+            _stepKeyLabel, _stepKeyBox, _stepKeyHint,
+            _stepButtonLabel, _stepButtonSelector, _stepDoubleClick,
+            _stepTargetLabel, _stepTargetSelector,
+            _stepPointLabel, _stepXInput, _stepYInput, _stepPickButton,
+            _stepScatterLabel, _stepScatter, _stepScatterHint,
+            _stepToLabel, _stepToXInput, _stepToYInput, _stepPickToButton,
+            _stepDragDurationLabel, _stepDragDuration, _stepDragDurationHint,
+            _stepTextLabel, _stepTextField,
+            _stepDelayEditor,
+            _stepColorLabel, _stepColorSwatch, _stepCaptureColorButton,
+            _stepToleranceLabel, _stepTolerance, _stepToleranceHint,
+            _stepTimeoutLabel, _stepTimeout, _stepTimeoutHint,
+            _stepClipboardHint,
+        })
+        {
+            control.Visible = false;
+        }
+    }
+
+    /// <summary>
+    /// Shows and positions exactly the controls <paramref name="kind"/> needs, reusing the same
+    /// instance of each shared control (the point fields, the Pick button, the button selector…)
+    /// across every kind that needs one rather than keeping a separate copy per kind — the same
+    /// approach the pre-macro Action card used for its Key/Text swap, extended to more rows.
+    /// </summary>
+    private void ShowStepFields(StepKind kind)
+    {
+        HideAllStepFields();
+
+        const int Row1 = 76;
+        const int Row2 = 120;
+        const int Row3 = 164;
+        const int Row4 = 208;
+
+        void ShowButtonRow(int y)
+        {
+            _stepButtonLabel.SetBounds(20, y + 6, 76, 20);
+            _stepButtonSelector.SetBounds(100, y, 174, 30);
+            _stepButtonLabel.Visible = true;
+            _stepButtonSelector.Visible = true;
+        }
+
+        void ShowPointRow(int y, FlatButton pickButton, NumberBox xInput, NumberBox yInput, ThemedLabel label)
+        {
+            label.SetBounds(20, y + 6, 76, 20);
+            xInput.SetBounds(100, y, 84, 32);
+            yInput.SetBounds(190, y, 84, 32);
+            pickButton.SetBounds(282, y - 1, 72, 30);
+            label.Visible = true;
+            xInput.Visible = true;
+            yInput.Visible = true;
+            pickButton.Visible = true;
+        }
+
+        switch (kind)
+        {
+            case StepKind.KeyPress:
+                _stepKeyLabel.SetBounds(20, Row1 + 6, 76, 20);
+                _stepKeyBox.SetBounds(100, Row1, 174, 32);
+                _stepKeyHint.SetBounds(282, Row1 + 6, 72, 20);
+                _stepKeyLabel.Visible = true;
+                _stepKeyBox.Visible = true;
+                _stepKeyHint.Visible = true;
+                break;
+
+            case StepKind.Click:
+                ShowButtonRow(Row1);
+                _stepDoubleClick.SetBounds(284, Row1 + 3, 78, 24);
+                _stepDoubleClick.Visible = true;
+
+                _stepTargetLabel.SetBounds(20, Row2 + 6, 76, 20);
+                _stepTargetSelector.SetBounds(100, Row2, 210, 30);
+                _stepTargetLabel.Visible = true;
+                _stepTargetSelector.Visible = true;
+
+                ShowPointRow(Row3, _stepPickButton, _stepXInput, _stepYInput, _stepPointLabel);
+
+                _stepScatterLabel.SetBounds(20, Row4 + 6, 76, 20);
+                _stepScatter.SetBounds(100, Row4, 84, 32);
+                _stepScatterHint.SetBounds(192, Row4 + 6, 170, 20);
+                _stepScatterLabel.Visible = true;
+                _stepScatter.Visible = true;
+                _stepScatterHint.Visible = true;
+                break;
+
+            case StepKind.Drag:
+                ShowButtonRow(Row1);
+                ShowPointRow(Row2, _stepPickButton, _stepXInput, _stepYInput, _stepPointLabel);
+                ShowPointRow(Row3, _stepPickToButton, _stepToXInput, _stepToYInput, _stepToLabel);
+
+                _stepDragDurationLabel.SetBounds(20, Row4 + 6, 76, 20);
+                _stepDragDuration.SetBounds(100, Row4, 84, 32);
+                _stepDragDurationHint.SetBounds(192, Row4 + 6, 220, 20);
+                _stepDragDurationLabel.Visible = true;
+                _stepDragDuration.Visible = true;
+                _stepDragDurationHint.Visible = true;
+                break;
+
+            case StepKind.TypeText:
+                _stepTextLabel.SetBounds(20, Row1 + 6, 88, 20);
+                _stepTextField.SetBounds(100, Row1, 304, 32);
+                _stepTextLabel.Text = Loc.TextWord;
+                _stepTextLabel.Visible = true;
+                _stepTextField.Visible = true;
+                break;
+
+            case StepKind.Wait:
+                _stepDelayEditor.SetBounds(20, Row1, 320, 32);
+                _stepDelayEditor.Visible = true;
+                break;
+
+            case StepKind.WaitForPixelColor:
+                ShowPointRow(Row1, _stepPickButton, _stepXInput, _stepYInput, _stepPointLabel);
+
+                _stepColorLabel.SetBounds(20, Row2 + 6, 76, 20);
+                _stepColorSwatch.SetBounds(100, Row2, 32, 32);
+                _stepCaptureColorButton.SetBounds(140, Row2, 90, 32);
+                _stepColorLabel.Visible = true;
+                _stepColorSwatch.Visible = true;
+                _stepCaptureColorButton.Visible = true;
+
+                _stepToleranceLabel.SetBounds(20, Row3 + 6, 76, 20);
+                _stepTolerance.SetBounds(100, Row3, 84, 32);
+                _stepToleranceHint.SetBounds(192, Row3 + 6, 220, 20);
+                _stepToleranceLabel.Visible = true;
+                _stepTolerance.Visible = true;
+                _stepToleranceHint.Visible = true;
+
+                _stepTimeoutLabel.SetBounds(20, Row4 + 6, 76, 20);
+                _stepTimeout.SetBounds(100, Row4, 84, 32);
+                _stepTimeoutHint.SetBounds(192, Row4 + 6, 220, 20);
+                _stepTimeoutLabel.Visible = true;
+                _stepTimeout.Visible = true;
+                _stepTimeoutHint.Visible = true;
+                break;
+
+            case StepKind.ClipboardSet:
+                _stepTextLabel.SetBounds(20, Row1 + 6, 88, 20);
+                _stepTextField.SetBounds(100, Row1, 304, 32);
+                _stepTextLabel.Text = Loc.ClipboardTextLabel;
+                _stepTextLabel.Visible = true;
+                _stepTextField.Visible = true;
+                break;
+
+            case StepKind.ClipboardPaste:
+                _stepClipboardHint.SetBounds(20, Row1 + 6, 380, 32);
+                _stepClipboardHint.Visible = true;
+                break;
+        }
+    }
+
     private void UpdateControlStates()
     {
         bool running = IsRunning;
+        bool busy = IsBusy;
 
         _sidebar.Enabled = !running;
         _nameBox.Enabled = !running;
@@ -1213,30 +1868,9 @@ internal sealed partial class MainForm : Form
             card.Enabled = !running;
         }
 
-        // Fields that do not apply to the chosen mode are disabled rather than hidden: the
-        // card keeps its shape, so switching modes never makes the layout jump. The key field
-        // and the text field are the one exception — TypeText needs a whole line box rather
-        // than a key-capture field, so that row swaps which control occupies it instead.
-        _keyLabel.Text = _current.UsesText ? Loc.TextWord : Loc.KeyWord;
-        _keyBox.Visible = !_current.UsesText;
-        _keyBox.Enabled = _current.UsesKey;
-        _keyHint.Visible = !_current.UsesText;
-        _typeText.Visible = _current.UsesText;
-        _typeText.Enabled = _current.UsesText;
-
-        _buttonSelector.Enabled = _current.UsesMouse;
-        _doubleClick.Enabled = _current.UsesMouse;
-        _targetSelector.Enabled = _current.UsesMouse;
-
-        bool fixedPoint = _current.UsesMouse && _current.Target == ClickTarget.FixedPoint;
-        _xInput.Enabled = fixedPoint;
-        _yInput.Enabled = fixedPoint;
-        _captureButton.Enabled = fixedPoint;
-        _scatter.Enabled = fixedPoint;
-
-        // The key delay only paces the gap between a key and a click, which only the full
-        // sequence has.
-        _keyDelay.Enabled = _current.Mode == ActionMode.KeyAndClick;
+        _addStepButton.Enabled = !busy && _current.Steps.Count < Limits.MaxSteps;
+        _recordButton.Enabled = !running;
+        ApplySelectedStep(_stepList.SelectedIndex);
 
         bool byCount = _current.Repeat == RepeatMode.Count;
         bool byDuration = _current.Repeat == RepeatMode.Duration;
@@ -1252,7 +1886,10 @@ internal sealed partial class MainForm : Form
             _ => Loc.RepeatHintForever,
         };
 
-        _runPanel.SetStartEnabled(!running);
-        _runPanel.SetTestEnabled(!running);
+        _windowTitleField.Enabled = _restrictWindowCheck.Checked;
+        _useCurrentWindowButton.Enabled = _restrictWindowCheck.Checked && !busy && !_captureWindowTimer.Enabled;
+
+        _runPanel.SetStartEnabled(!busy);
+        _runPanel.SetTestEnabled(!busy);
     }
 }

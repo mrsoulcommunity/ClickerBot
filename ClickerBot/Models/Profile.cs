@@ -1,44 +1,16 @@
 namespace ClickerBot;
 
 /// <summary>
-/// A named set of automation settings. Everything the user can configure lives here,
-/// which is what makes profiles a straight save/load of this object.
+/// A named macro: an ordered list of steps, how many times it repeats, its hotkeys, and
+/// optionally the one window it is allowed to run against. Everything the user can configure
+/// lives here, which is what makes profiles a straight save/load of this object.
 /// </summary>
 internal sealed class Profile
 {
     public string Name { get; set; } = Loc.NewProfile;
 
-    /// <summary>Whether an iteration presses a key, clicks, or does both.</summary>
-    public ActionMode Mode { get; set; } = ActionMode.KeyAndClick;
-
-    /// <summary>The keyboard key that gets pressed each iteration.</summary>
-    public Keys Key { get; set; } = Keys.None;
-
-    public ClickButton Button { get; set; } = ClickButton.Left;
-
-    /// <summary>Send a second click straight after the first, as a double-click.</summary>
-    public bool DoubleClick { get; set; }
-
-    public ClickTarget Target { get; set; } = ClickTarget.FixedPoint;
-
-    /// <summary>The line <see cref="ActionMode.TypeText"/> types each iteration.</summary>
-    public string Text { get; set; } = string.Empty;
-
-    public int ClickX { get; set; }
-
-    public int ClickY { get; set; }
-
-    /// <summary>
-    /// Radius in pixels of a random offset applied to every click. Zero hits the exact
-    /// coordinate every time, which is the giveaway that a machine is doing the clicking.
-    /// </summary>
-    public int Scatter { get; set; }
-
-    /// <summary>Delay between the key press and the mouse click.</summary>
-    public DelaySetting KeyDelay { get; set; } = new() { Fixed = 100, Min = 80, Max = 150 };
-
-    /// <summary>Delay after the mouse click, i.e. between one click and the next.</summary>
-    public DelaySetting ClickDelay { get; set; } = new() { Fixed = 100, Min = 80, Max = 150 };
+    /// <summary>The macro itself: what happens, in order, on every iteration.</summary>
+    public List<MacroStep> Steps { get; set; } = new();
 
     /// <summary>Countdown before the first iteration, to give you time to change windows.</summary>
     public int StartDelaySeconds { get; set; } = 3;
@@ -49,6 +21,15 @@ internal sealed class Profile
 
     public int DurationMinutes { get; set; } = 5;
 
+    /// <summary>
+    /// Restricts the macro to running only while a particular window is in front. Off by
+    /// default — most profiles are meant to be aimed by hand the way they always were.
+    /// </summary>
+    public bool RequireTargetWindow { get; set; }
+
+    /// <summary>A case-insensitive substring match against the foreground window's title.</summary>
+    public string TargetWindowTitle { get; set; } = string.Empty;
+
     public Keys StartHotkey { get; set; } = Keys.F7;
 
     public Keys PauseHotkey { get; set; } = Keys.F8;
@@ -57,43 +38,35 @@ internal sealed class Profile
 
     public Keys PickHotkey { get; set; } = Keys.F10;
 
-    [System.Text.Json.Serialization.JsonIgnore]
-    public Point ClickPoint => new(ClickX, ClickY);
+    // --- Legacy single-action fields ------------------------------------
+    //
+    // Read once by Normalize to build an equivalent Steps list for a profile saved before
+    // macros existed, then never read again. Kept only so that file — and the "New profile"
+    // default, which is really just an empty profile going through the same migration path —
+    // still deserializes and still produces a first step to look at instead of a blank list.
 
-    // Written as explicit positive lists rather than a negation of the other modes: with more
-    // than two modes, "not ClickOnly" and "the modes that use a key" stop being the same set,
-    // and a negation would silently start claiming TypeText needs a key.
-
-    /// <summary>True when this profile presses a key, which is what makes the key field matter.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesKey => Mode is ActionMode.KeyAndClick or ActionMode.KeyOnly;
-
-    /// <summary>True when this profile clicks, which is what makes the mouse settings matter.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesMouse => Mode is ActionMode.KeyAndClick or ActionMode.ClickOnly;
-
-    /// <summary>True when this profile types text, which is what makes the text field matter.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesText => Mode == ActionMode.TypeText;
+    public ActionMode Mode { get; set; } = ActionMode.KeyAndClick;
+    public Keys Key { get; set; } = Keys.None;
+    public ClickButton Button { get; set; } = ClickButton.Left;
+    public bool DoubleClick { get; set; }
+    public ClickTarget Target { get; set; } = ClickTarget.FixedPoint;
+    public string Text { get; set; } = string.Empty;
+    public int ClickX { get; set; }
+    public int ClickY { get; set; }
+    public int Scatter { get; set; }
+    public DelaySetting KeyDelay { get; set; } = new() { Fixed = 100, Min = 80, Max = 150 };
+    public DelaySetting ClickDelay { get; set; } = new() { Fixed = 100, Min = 80, Max = 150 };
 
     public Profile Clone() => new()
     {
         Name = Name,
-        Mode = Mode,
-        Key = Key,
-        Button = Button,
-        DoubleClick = DoubleClick,
-        Target = Target,
-        Text = Text,
-        ClickX = ClickX,
-        ClickY = ClickY,
-        Scatter = Scatter,
-        KeyDelay = KeyDelay.Clone(),
-        ClickDelay = ClickDelay.Clone(),
+        Steps = Steps.Select(s => s.Clone()).ToList(),
         StartDelaySeconds = StartDelaySeconds,
         Repeat = Repeat,
         Repetitions = Repetitions,
         DurationMinutes = DurationMinutes,
+        RequireTargetWindow = RequireTargetWindow,
+        TargetWindowTitle = TargetWindowTitle,
         StartHotkey = StartHotkey,
         PauseHotkey = PauseHotkey,
         StopHotkey = StopHotkey,
@@ -101,10 +74,12 @@ internal sealed class Profile
     };
 
     /// <summary>
-    /// Pulls every value back inside <see cref="Limits"/>, and replaces anything a JSON file
-    /// left null. Without this a hand-edited (or half-written) profile can reach the UI in a
-    /// state it cannot display — a repetition count of 0 would "run" and finish instantly,
-    /// and a missing delay would be a null reference the moment the editor is filled in.
+    /// Pulls every value back inside <see cref="Limits"/>, replaces anything a JSON file left
+    /// null, and — the one migration this app will ever need to do — turns a pre-macro
+    /// profile's single action into the equivalent Steps list the first time it is loaded.
+    /// Without this a hand-edited (or half-written) profile can reach the UI in a state it
+    /// cannot display, and an old profiles.json would open to an empty, confusing macro instead
+    /// of the one action it always ran.
     /// </summary>
     public void Normalize()
     {
@@ -113,33 +88,78 @@ internal sealed class Profile
             Name = Loc.UntitledProfileName;
         }
 
-        Mode = Enum.IsDefined(Mode) ? Mode : ActionMode.KeyAndClick;
-        Button = Enum.IsDefined(Button) ? Button : ClickButton.Left;
-        Target = Enum.IsDefined(Target) ? Target : ClickTarget.FixedPoint;
         Repeat = Enum.IsDefined(Repeat) ? Repeat : RepeatMode.Count;
-
-        if (Text is null)
-        {
-            Text = string.Empty;
-        }
-        else if (Text.Length > Limits.MaxTypedTextLength)
-        {
-            Text = Text[..Limits.MaxTypedTextLength];
-        }
-
-        ClickX = Math.Clamp(ClickX, Limits.MinCoordinate, Limits.MaxCoordinate);
-        ClickY = Math.Clamp(ClickY, Limits.MinCoordinate, Limits.MaxCoordinate);
-        Scatter = Math.Clamp(Scatter, Limits.MinScatter, Limits.MaxScatter);
         Repetitions = Math.Clamp(Repetitions, Limits.MinRepetitions, Limits.MaxRepetitions);
         DurationMinutes = Math.Clamp(DurationMinutes, Limits.MinDurationMinutes, Limits.MaxDurationMinutes);
         StartDelaySeconds = Math.Clamp(
             StartDelaySeconds, Limits.MinStartDelaySeconds, Limits.MaxStartDelaySeconds);
+        TargetWindowTitle ??= string.Empty;
 
-        KeyDelay ??= new DelaySetting();
-        ClickDelay ??= new DelaySetting();
-        KeyDelay.Normalize();
-        ClickDelay.Normalize();
+        if (Steps is null || Steps.Count == 0)
+        {
+            Steps = BuildLegacyMigrationSteps();
+        }
+
+        Steps.RemoveAll(step => step is null);
+        if (Steps.Count > Limits.MaxSteps)
+        {
+            Steps.RemoveRange(Limits.MaxSteps, Steps.Count - Limits.MaxSteps);
+        }
+
+        foreach (var step in Steps)
+        {
+            step.Normalize();
+        }
     }
+
+    /// <summary>
+    /// Reconstructs the equivalent step sequence for whatever this profile's legacy single
+    /// action used to be: the key (if any), the pace between the key and the click, the click
+    /// (if any) or the typed text, then the pace between one iteration and the next — the exact
+    /// order <c>AutomationRunner</c> used to run them in, now expressed as steps instead of a
+    /// mode switch. A brand new profile goes through this same path with its untouched
+    /// property-initializer defaults, which is what gives it a sensible first step to look at
+    /// rather than an empty list.
+    /// </summary>
+    private List<MacroStep> BuildLegacyMigrationSteps()
+    {
+        var steps = new List<MacroStep>();
+
+        switch (Mode)
+        {
+            case ActionMode.KeyAndClick:
+                steps.Add(new MacroStep { Kind = StepKind.KeyPress, Key = Key });
+                steps.Add(new MacroStep { Kind = StepKind.Wait, Delay = (KeyDelay ?? new DelaySetting()).Clone() });
+                steps.Add(BuildLegacyClickStep());
+                break;
+
+            case ActionMode.KeyOnly:
+                steps.Add(new MacroStep { Kind = StepKind.KeyPress, Key = Key });
+                break;
+
+            case ActionMode.ClickOnly:
+                steps.Add(BuildLegacyClickStep());
+                break;
+
+            case ActionMode.TypeText:
+                steps.Add(new MacroStep { Kind = StepKind.TypeText, Text = Text ?? string.Empty });
+                break;
+        }
+
+        steps.Add(new MacroStep { Kind = StepKind.Wait, Delay = (ClickDelay ?? new DelaySetting()).Clone() });
+        return steps;
+    }
+
+    private MacroStep BuildLegacyClickStep() => new()
+    {
+        Kind = StepKind.Click,
+        Button = Button,
+        DoubleClick = DoubleClick,
+        Target = Target,
+        X = ClickX,
+        Y = ClickY,
+        Scatter = Scatter,
+    };
 
     public override string ToString() => Name;
 }

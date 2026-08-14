@@ -52,6 +52,13 @@ internal sealed class TextField : Control, IThemedControl
         set => _input.MaxLength = value;
     }
 
+    /// <summary>Faint text shown by the underlying box itself while empty and unfocused.</summary>
+    public string Placeholder
+    {
+        get => _input.PlaceholderText;
+        set => _input.PlaceholderText = value ?? string.Empty;
+    }
+
     public void ApplyTheme()
     {
         _input.BackColor = Theme.Field;

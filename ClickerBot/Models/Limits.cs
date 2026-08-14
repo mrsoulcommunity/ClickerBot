@@ -43,4 +43,39 @@ internal static class Limits
 
     /// <summary>How many finished runs the history keeps before the oldest fall off.</summary>
     public const int MaxHistoryEntries = 50;
+
+    /// <summary>
+    /// A generous ceiling on a macro's own length — not a realistic sequence anyone would build
+    /// by hand, but a backstop against a runaway recording session producing a list the step
+    /// editor cannot reasonably scroll through.
+    /// </summary>
+    public const int MaxSteps = 500;
+
+    /// <summary>One color channel, 0–255.</summary>
+    public const int MinColorChannel = 0;
+
+    public const int MaxColorChannel = 255;
+
+    /// <summary>
+    /// How far a sampled pixel may drift from the target color, per channel, and still count
+    /// as a match — screens dither and video is never perfectly flat, so an exact-match
+    /// tolerance of zero would make this step nearly impossible to satisfy in practice.
+    /// </summary>
+    public const int MinColorTolerance = 0;
+
+    public const int MaxColorTolerance = 255;
+
+    /// <summary>Zero means wait indefinitely for a pixel-color match.</summary>
+    public const int MinPixelTimeoutSeconds = 0;
+
+    /// <summary>One hour: long enough for a real wait, short enough that a stuck step is noticed.</summary>
+    public const int MaxPixelTimeoutSeconds = 3_600;
+
+    /// <summary>
+    /// Zero drags instantly; some target applications only recognize a drag as real when the
+    /// cursor visibly travels over time, which is what a nonzero duration is for.
+    /// </summary>
+    public const int MinDragDurationMs = 0;
+
+    public const int MaxDragDurationMs = 5_000;
 }

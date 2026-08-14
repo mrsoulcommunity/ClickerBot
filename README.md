@@ -4,7 +4,7 @@
 
 <h1 align="center">ClickerBot</h1>
 
-<p align="center">A Windows desktop automation tool that repeats a key press, a mouse click, or both — precisely, and on your terms.</p>
+<p align="center">A Windows desktop macro tool: build a sequence of steps — key presses, clicks, drags, typed text, waits, even a wait for a pixel to change color — record it live from your own input, and repeat it precisely, on your terms.</p>
 
 <p align="center">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows&logoColor=white">
@@ -49,25 +49,30 @@ Built with .NET 8 and Windows Forms — every control is custom-drawn, so the in
 
 | Feature | Description |
 | --- | --- |
-| **Four action modes** | Key + click, key only, click only, or type text — the fields that don't apply to the chosen mode disable themselves rather than disappear, so the layout never jumps. |
+| **Step-sequence macro builder** | A profile is an ordered list of steps — press a key, click, drag, type text, wait, wait for a pixel to match a color, set the clipboard, or paste — that repeats as a whole on every iteration. Reorder, edit, or delete any step; nothing about the sequence's length or shape is fixed. |
+| **Macro recorder** | Click **Record** and ClickerBot captures your real mouse and keyboard input live — clicks, drags, and key presses, each with a wait sized to the actual pacing you recorded at — and turns it straight into an editable step sequence. Click **Stop recording** when you're done. |
+| **Mouse drag** | A press-move-release motion between two points over a configurable duration (or instant), for targets that only recognize a real drag rather than a teleporting click. |
+| **Wait for pixel color** | Pauses a step sequence until a screen pixel matches a target color within a tolerance, or a timeout elapses — for a macro that reacts to something changing on screen instead of just running blind on a timer. |
+| **Clipboard steps** | Set the clipboard to fixed text, or paste whatever is currently on it with `Ctrl+V` — either as its own step, wherever it belongs in the sequence. |
+| **Window targeting** | Restrict a profile to only run while a chosen window is in front. The run pauses itself the instant that window loses focus and resumes on its own the moment it's back — no risk of a macro firing into whatever you tabbed to instead. |
 | **Type text** | Types a fixed line via Unicode input rather than a single mapped key, so any character your keyboard layout can't reach — accents, symbols, other scripts — still works. Handy for repeated chat messages or form filling. |
 | **Any key supported** | Letters, digits, function keys, `Tab`, `Enter`, `Space`, punctuation, arrows, and numpad keys. Press `Esc` in a key field to clear it. |
-| **Left, right or middle click, single or double** | The mouse button and whether each iteration double-clicks are both configurable. |
-| **Fixed point or the live cursor** | Click a captured screen coordinate, or click wherever the cursor already is so you can steer a run by hand. |
-| **Click scatter** | A random pixel radius applied around the click target, so every click doesn't land on the exact same coordinate. |
-| **Fixed or randomized delays** | Each delay is either a fixed millisecond value or a random value re-drawn from a `min–max` range on every iteration. |
+| **Left, right or middle click, single or double** | The mouse button and whether a click step double-clicks are both configurable. |
+| **Fixed point or the live cursor** | A click step can target a captured screen coordinate, or wherever the cursor already is so you can steer a run by hand. |
+| **Click scatter** | A random pixel radius applied around a click step's target, so every click doesn't land on the exact same coordinate. |
+| **Fixed or randomized delays** | A wait step is either a fixed millisecond value or a random value re-drawn from a `min–max` range on every iteration. |
 | **Three ways to stop** | An iteration count, a time limit, or run until you stop it by hand. |
-| **Start delay** | An optional countdown before the first action, so you have time to click into the target window. |
-| **Test button** | Fires exactly one iteration right now — no start delay, no repeat count, nothing logged to history — so you can check a key, a click point, or typed text before committing to a full run. |
+| **Start delay** | An optional countdown before the first iteration, so you have time to click into the target window. |
+| **Test step / Test run** | The step editor's **Test step** button fires exactly the selected step right now; the run bar's **Test** button fires one full pass of the whole sequence — neither logs a start delay, a repeat count, or a history entry, so you can check a step or the whole macro before committing to a full run. |
 | **Pause and resume** | Hold a run in place without losing its iteration count or elapsed time, then continue exactly where it left off. |
 | **Failsafe corner-abort** | Slamming the real cursor into any corner of the screen aborts a run immediately — a backstop for when a Stop hotkey couldn't be registered. On by default; turn it off in the *Window* card if a run legitimately needs to click near a corner. |
 | **📱 Mobile control** | Enable it in the *Remote* card and ClickerBot serves a phone-friendly page on your LAN with a live status readout and a Start/Stop button — no cables, no companion app. PIN-protected. See [Mobile control](#-mobile-control). |
 | **Live cadence strip** | A running strip of ticks, one per completed iteration, laid out on a real time axis — an even comb for a fixed delay, a ragged one for a random range. It's the fastest way to tell a run is behaving the way you configured it. |
-| **Position capture** | Click **Pick** — or press its hotkey from anywhere — to store the current cursor position as the click target. |
-| **Four global hotkeys** | Start, Pause, Stop, and Pick point are all registered system-wide and work while other applications have focus. All four are configurable per profile and must be distinct from each other and from the automated key. |
-| **Profiles** | Create, rename, duplicate, delete, import, and export named configurations. Every setting is part of the profile. |
+| **Position capture** | Click **Pick** — or press its hotkey from anywhere — to store the current cursor position into the selected step's point (and, for a pixel-color step, sample its color at the same time). |
+| **Four global hotkeys** | Start, Pause, Stop, and Pick point are all registered system-wide and work while other applications have focus. All four are configurable per profile and must be distinct from each other and from any key-press step. |
+| **Profiles** | Create, rename, duplicate, delete, import, and export named configurations. Every step and setting is part of the profile. |
 | **Import / export** | Share a profile file between machines, or keep a backup outside `%APPDATA%`, without touching the rest of your saved profiles. |
-| **Run history** | The last 50 runs — profile, mode, when, how long, how many iterations, how it ended — kept in a themed dialog off the sidebar, so a run left going unattended has something to show for itself afterwards. |
+| **Run history** | The last 50 runs — profile, step count, when, how long, how many iterations, how it ended — kept in a themed dialog off the sidebar, so a run left going unattended has something to show for itself afterwards. |
 | **Keep above other windows** | Optionally pins ClickerBot on top so the run panel stays visible over the window being automated. |
 | **Hide to the notification area while running** | Drops the window out of the way for the duration of a run and restores it automatically when the run ends. The tray icon itself shows whether a run is active. |
 | **Start with Windows** | Launches ClickerBot, minimized to the tray, when you sign in — toggled through the same per-user Run key Windows itself uses, no installer needed. |
@@ -115,24 +120,29 @@ dotnet run --project ClickerBot/ClickerBot.csproj -c Release
 
 ## 🎯 Usage
 
-1. **Choose a mode** in the *Action* card: **Both** (key + click), **Key** (key only), **Click** (click only), or **Text** (types a line, no key or click). The fields that don't apply grey out.
-2. **Pick a key, or type text** (whichever the mode uses). Click the **Key** field and press the key you want automated — or, in Text mode, type the line you want it to enter each iteration.
-3. **Set up the click** (if the mode uses one): pick the button, whether it double-clicks, and whether it clicks **a fixed point** or **the cursor**'s live position. For a fixed point, move your cursor to the target and press the **Pick** hotkey (or click **Pick**), or type the X/Y coordinates directly. **Scatter** adds a random pixel radius around that point so clicks don't land on the exact same spot every time.
-4. **Tune the timing** in the *Timing* card:
-   - **After the key press, before the click** — only used by the Both mode.
-   - **Between one iteration and the next.**
-   - Tick **Random** on either one to draw a fresh value from a `min–max` range each iteration.
-   - **Start delay** — an optional countdown before the first action, to give you time to click into the target window.
-5. **Choose how the run ends** in the *Repeat* card: a **Count** of iterations, a **Duration**, or **Until stopped**.
-6. **Try it once first.** The run bar's **Test** button fires exactly one iteration immediately, with no start delay and nothing recorded to history — the fastest way to confirm the key, click point, or typed text is right before committing to a real run.
-7. **Press Start** — or your Start hotkey, or the Start button on your phone. The settings panel locks while a run is in progress; the cadence strip and readouts in the run bar update live.
-8. **Pause and resume** with the run bar's Pause button or your Pause hotkey — the iteration count and elapsed time hold in place and continue from there.
-9. **Press Stop** — or your Stop hotkey, or your phone, or move the mouse into a screen corner — to cancel at any time.
+### Building a macro by hand
+
+1. **Add a step** in the *Steps* card, then pick its kind from the selector in the *Step* card: **Press a key**, **Click**, **Drag**, **Type text**, **Wait**, **Wait for pixel color**, **Set clipboard**, or **Paste**. The fields below the selector change to match — only what that kind actually uses.
+2. **Fill in the fields for that kind.** A click or a drag's point is set by moving your cursor to the target and pressing the **Pick** hotkey (or clicking **Pick**), or by typing X/Y directly; **Scatter** adds a random pixel radius so clicks don't land on the exact same spot every time. A pixel-color step's **Pick** captures the point *and* samples the color there together, so one click sets up the whole condition.
+3. **Reorder, delete, or add more steps** with the toolbar under the step list — the sequence runs top to bottom, in order, once per iteration.
+4. **Try a single step** with the **Test step** button in the *Step* card, or the whole sequence once with the run bar's **Test** button, before committing to a full run.
+
+### Recording a macro instead
+
+Click **Record** in the *Steps* card, then just do the thing you want repeated — click, drag, type, press keys — anywhere on screen. ClickerBot turns your real input into steps live, with a wait sized to the actual pacing between each action, so the recording plays back at the speed you did it. Click **Stop recording** when you're done, then edit the result exactly like a hand-built sequence — trim a step, adjust a point, tighten a wait.
+
+### Running it
+
+1. **Tune the timing** in the *Repeat* card: how the run ends — a **Count** of iterations, a **Duration**, or **Until stopped** — and an optional **Start delay** before the first iteration, to give you time to click into the target window.
+2. **Restrict it to a window**, optionally: tick **Only run while this window is focused** and either type a substring of its title or click **Use current**, switch to the target window within the countdown, and ClickerBot reads its title for you. The run pauses itself automatically whenever that window isn't in front, and resumes the moment it is again.
+3. **Press Start** — or your Start hotkey, or the Start button on your phone. The settings panel locks while a run is in progress; the cadence strip and readouts in the run bar update live.
+4. **Pause and resume** with the run bar's Pause button or your Pause hotkey — the iteration count and elapsed time hold in place and continue from there.
+5. **Press Stop** — or your Stop hotkey, or your phone, or move the mouse into a screen corner — to cancel at any time.
 
 The switch in the top-right corner flips between light and dark at any time; see [Appearance](#-appearance). Past runs are one click away in **History**, at the bottom of the sidebar.
 
 > **Note**
-> The automated key cannot be one of the four hotkeys (this doesn't apply to Text mode, which has no key). Synthesized key presses trigger registered hotkeys just like real ones, so the run would stop itself, restart itself, pause itself, or quietly move the click target out from under itself. The app blocks these combinations and tells you which one you hit.
+> A key-press step's key cannot be one of the four hotkeys. Synthesized key presses trigger registered hotkeys just like real ones, so the run would stop itself, restart itself, pause itself, or quietly move the pick target out from under itself. The app blocks these combinations and tells you which one you hit.
 
 ---
 
@@ -214,11 +224,11 @@ The runtime copy exists because the compiled icon can't relight itself — nothi
 | `F7` | Start the current profile | Yes — per profile |
 | `F8` | Pause or resume the current run | Yes — per profile |
 | `F9` | Stop the current run | Yes — per profile |
-| `F10` | Capture the cursor position as the click target | Yes — per profile |
+| `F10` | Capture the cursor position into the selected step's point (and its color, for a pixel-color step) | Yes — per profile |
 
 Hotkeys are registered globally through the Win32 `RegisterHotKey` API, so they fire even when ClickerBot is in the background — including while it's hidden to the notification area. If another application already owns a key, the status bar tells you which binding could not be registered — pick a different one.
 
-All four hotkeys must be distinct from each other, and from the automated key when the current mode uses one.
+All four hotkeys must be distinct from each other, and from any key-press step's key.
 
 **If a hotkey can't be registered, the failsafe still works.** Moving the real mouse cursor into any corner of the screen aborts a run immediately, whether or not the Stop hotkey is available — see [Features](#-features). It's on by default and can be turned off per your preference in the *Window* card.
 
@@ -226,7 +236,9 @@ All four hotkeys must be distinct from each other, and from the automated key wh
 
 ## 🗂️ Profiles and data storage
 
-Profiles hold every configurable value: the mode, key or typed text, mouse button, click target and scatter, both delay settings, the start delay, the repeat mode, and all four hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme, the language, and the window options (always-on-top, hide-to-tray, the failsafe toggle, mobile control) are stored alongside them but apply to the whole application rather than to a single profile.
+Profiles hold every configurable value: the step sequence itself, the start delay, the repeat mode, the optional target-window restriction, and all four hotkeys. Switching profiles re-registers that profile's hotkeys immediately. The chosen theme, the language, and the window options (always-on-top, hide-to-tray, the failsafe toggle, mobile control) are stored alongside them but apply to the whole application rather than to a single profile.
+
+A profile saved before macros existed still opens correctly: its old single key-and-click action is converted into the equivalent step sequence the first time it loads, so nothing is lost and there's nothing to redo by hand.
 
 Everything is stored as indented JSON at:
 
@@ -244,7 +256,7 @@ The app was previously called ClickerApp. If nothing is found at the path above,
 
 ## 🕓 Run history
 
-The **History** button at the bottom of the sidebar opens a list of the last 50 runs: which profile, which mode, when it started, how long it ran, how many iterations it completed, and how it ended — Finished, Stopped, a failsafe abort, or an error. A one-shot **Test** doesn't get an entry; it isn't a run.
+The **History** button at the bottom of the sidebar opens a list of the last 50 runs: which profile, how many steps its sequence had, when it started, how long it ran, how many iterations it completed, and how it ended — Finished, Stopped, a failsafe abort, or an error. A one-shot **Test** doesn't get an entry; it isn't a run.
 
 History is stored separately from your profiles, at `%APPDATA%\ClickerBot\history.json`, with the same crash-safe save as `profiles.json`. **Clear history** in the dialog empties the list — there's a confirmation first, and it can't be undone.
 
@@ -271,19 +283,22 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   ├── logo-idle.png          # README art (idle state)
 │   │   └── screenshots/           # README screenshots (app + mobile control, EN + FA)
 │   ├── Automation/
-│   │   ├── AutomationRunner.cs   # The async action loop: mode-aware, pausable, time-or-count bounded
-│   │   └── RunProgress.cs        # Run phase snapshot + the pause gate the UI holds
+│   │   ├── AutomationRunner.cs   # The async step-sequence loop: pausable, time-or-count bounded
+│   │   └── RunProgress.cs        # Run phase snapshot + the pause gate (user- and window-focus-driven)
 │   ├── Input/
+│   │   ├── ForegroundWindow.cs   # Reads/matches the foreground window's title, for window targeting
 │   │   ├── HotkeyManager.cs      # Global hotkey registration (RegisterHotKey)
 │   │   ├── KeyNames.cs           # Human-readable key labels
-│   │   ├── NativeInput.cs        # SendInput wrapper for synthetic key/mouse/text input
+│   │   ├── MacroRecorder.cs      # Global low-level hooks that capture real input as a step sequence
+│   │   ├── NativeInput.cs        # SendInput/drag/pixel-sample/clipboard wrapper for synthetic input
 │   │   └── StartupManager.cs     # Reads/writes the per-user Run registry key
 │   ├── Models/
-│   │   ├── ActionMode.cs         # Mode / button / repeat-mode / click-target enums
+│   │   ├── ActionMode.cs         # Legacy mode / button / repeat-mode / click-target enums
 │   │   ├── DelaySetting.cs       # Fixed or random-range delay
 │   │   ├── Language.cs           # English / Persian
 │   │   ├── Limits.cs             # The valid range of every numeric setting
-│   │   ├── Profile.cs            # One named configuration
+│   │   ├── MacroStep.cs          # One step in a macro's sequence, and its StepKind
+│   │   ├── Profile.cs            # One named configuration: its step sequence and settings
 │   │   ├── ProfileStore.cs       # JSON load/save, plus import/export
 │   │   └── RunHistory.cs         # A finished run's record, and its JSON load/save
 │   ├── Remote/
@@ -302,10 +317,12 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 │   │   │   ├── RunHistoryDialog.cs # Themed dialog listing past runs
 │   │   │   ├── RunPanel.cs         # Run bar: status, readouts, cadence strip, transport
 │   │   │   ├── Segmented.cs        # Owner-drawn segmented choice control
+│   │   │   ├── StepListBox.cs      # Owner-drawn list of a macro's steps
 │   │   │   ├── SurfacePanel.cs     # Panel that tracks the surface color
-│   │   │   ├── TextField.cs        # Owner-drawn free-text field (the Type-text mode's input)
+│   │   │   ├── TextField.cs        # Owner-drawn free-text field (Type-text / Set-clipboard steps)
 │   │   │   ├── ThemeToggle.cs      # Animated light/dark switch
 │   │   │   ├── ThemedCheckBox.cs   # Owner-drawn checkbox
+│   │   │   ├── ThemedComboBox.cs   # Owner-drawn drop-down (the step-kind selector)
 │   │   │   ├── ThemedLabel.cs      # Label that stores a role, not a color
 │   │   │   └── ThemedTextBox.cs    # Palette-aware text box
 │   │   ├── Localization/
@@ -334,27 +351,36 @@ The checkbox reads the registry directly rather than a saved preference, so it a
 
 ## ⚙️ How it works
 
-`AutomationRunner.RunAsync` drives the loop while the UI thread stays responsive. Each iteration is one call to `PerformIterationAsync`, which switches on the mode:
+A profile is an ordered `List<MacroStep>`. `AutomationRunner.RunAsync` drives the loop while the UI thread stays responsive; each iteration is one call to `PerformIterationAsync`, which runs every step in order through `PerformStepAsync`, a switch on `StepKind`:
 
-- **Both** — synthesize a key-down/key-up pair via `SendInput`, wait the *after key press* delay, then click.
-- **Key** — synthesize the key-down/key-up pair; no click, no gap to wait out.
-- **Click** — click, with no key involved.
-- **Text** — synthesize one `SendInput` Unicode event pair per character, bypassing virtual-key mapping entirely so any character your keyboard layout can't reach still types correctly.
+- **KeyPress** — synthesize a key-down/key-up pair via `SendInput`.
+- **Click** — move the cursor (unless the target is the live cursor position), then synthesize the configured button — twice, for a double-click. A **scatter** radius, if set, offsets the point by a random amount inside that radius on every click, sampled evenly across the disc rather than bunched toward the center.
+- **Drag** — press the button at the start point, then travel to the end point over the configured duration (awaited between frames rather than blocked, so the UI thread stays responsive for up to the full duration), then release — wrapped in a `finally` so cancelling mid-drag can never leave the button physically stuck down.
+- **TypeText** — synthesize one `SendInput` Unicode event pair per character, bypassing virtual-key mapping entirely so any character your keyboard layout can't reach still types correctly.
+- **Wait** — `DelaySetting.Next()` for a fresh value (fixed or random-range) and `Task.Delay` it.
+- **WaitForPixelColor** — poll the target pixel every 100ms against the target color and tolerance until it matches or the step's own timeout elapses; a timeout is not a failure, the macro just moves on to the next step.
+- **ClipboardSet / ClipboardPaste** — write fixed text to the clipboard, or synthesize `Ctrl+V`.
 
-A click moves the cursor first, unless the target is the live cursor position, then synthesizes the configured button — twice, for a double-click. A **scatter** radius, if set, offsets the point by a random amount inside that radius on every click, sampled evenly across the disc rather than bunched toward the center. The **Test** button runs the very same loop with its repeat count pinned to one and its start delay to zero, so it reaches the identical `PerformIterationAsync` — there is exactly one place that knows how to perform an iteration, and both the real run and the one-shot test go through it. Only the bookkeeping differs: a test records no history entry.
+The **Test step** button in the step editor runs a single step through the same `PerformStepAsync`; the run bar's **Test** button runs one full pass of `PerformIterationAsync`. There is exactly one place that knows how to perform a step and one that knows how to perform an iteration, and every path — a real run, a one-shot test, a single step's test — goes through them. Only the bookkeeping differs: a test records no history entry.
 
-Around that iteration, the loop:
+Around the sequence, the loop:
 
 1. Waits out the start delay, if any, reporting a countdown each second (skipped entirely for a test).
 2. Checks the stop condition — iteration count or elapsed duration — before each iteration.
 3. Reports progress to the UI and marks the iteration on the cadence strip.
-4. Waits the *between iterations* delay, then repeats.
+4. Runs the step sequence, then repeats — except on a count-limited run's very last iteration, where any `Wait` steps trailing the end of the sequence are skipped, since there is nothing left to pace against.
 
-Each wait calls `DelaySetting.Next()`, so a randomized delay produces a different value on every pass. Cancellation is cooperative through a `CancellationTokenSource`, checked before each synthesized input and honored by every `Task.Delay`, so **Stop** — including a failsafe-triggered one — takes effect within one delay interval at most.
+Cancellation is cooperative through a `CancellationTokenSource`, checked before each step and honored by every `Task.Delay`, so **Stop** — including a failsafe-triggered one — takes effect within one step or delay interval at most.
 
-**Pause** goes through a separate `PauseGate` rather than cancellation: the loop parks on it between iterations, and the elapsed-time clock stops with it, so a duration-limited run doesn't burn its budget while paused. Resuming picks the loop back up with its iteration count and remaining time exactly where they were.
+**Pause** goes through a `PauseGate` rather than cancellation, and it now tracks two independent reasons a run can be held: your own Pause button, and — for a profile restricted to a target window — that window not currently being in front. Either one holds the gate closed; resuming requires every reason currently holding it to clear, so a run you paused by hand never auto-resumes just because the target window happened to regain focus. The elapsed-time clock stops while the gate is closed either way, so a duration-limited run doesn't burn its budget sitting held.
 
-**The failsafe** is checked outside `AutomationRunner` entirely, on the same 100ms UI timer that already repaints the cadence strip: if the real cursor is within a pixel of any corner of `SystemInformation.VirtualScreen`, the run is cancelled with a reason that overrides the ordinary "Stopped" message — unless that corner happens to be the profile's own configured click point, since a run is allowed to legitimately park the cursor there between clicks.
+**Window targeting** is polled on the same 100ms UI timer as the cadence strip and the failsafe: for a profile with `RequireTargetWindow` set, `ForegroundWindow.Matches` checks the current foreground window's title against a case-insensitive substring, and the result is fed into the `PauseGate`. The *Repeat* card's **Use current** button can't simply read the foreground window at the moment it's clicked — clicking it makes ClickerBot itself the foreground window first — so it runs a short countdown instead, giving you time to switch to the intended window before it captures the title.
+
+**The macro recorder** (`MacroRecorder`) installs global `WH_KEYBOARD_LL` and `WH_MOUSE_LL` hooks and only ever observes — every hook callback calls `CallNextHookEx`, so recording never blocks the input it's watching. A key press becomes a `KeyPress` step; a mouse down/up pair becomes a `Click` step, or a `Drag` step if the cursor moved more than a few pixels between them. A `Wait` step is inserted ahead of each capture sized to the real elapsed time since the previous one, so the recording reproduces the pacing it was recorded at, not just the actions.
+
+**The failsafe** is checked on that same 100ms timer: if the real cursor is within a pixel of any corner of `SystemInformation.VirtualScreen`, the run is cancelled with a reason that overrides the ordinary "Stopped" message — unless that corner happens to be one of the sequence's own Click or Drag points, since a run is allowed to legitimately park the cursor there.
+
+**A profile saved before macros existed** carries its old single-action fields (`Mode`, `Key`, `ClickX`, and so on) marked as legacy, read exactly once. `Profile.Normalize` calls `BuildLegacyMigrationSteps` whenever a profile's `Steps` list is empty, reconstructing the equivalent sequence — the same path a brand-new profile's untouched property defaults go through, which is what gives it a sensible first step to look at instead of an empty list.
 
 **Mobile control** runs on `System.Net.HttpListener`, bound to `127.0.0.1` and each of the machine's real LAN IPv4 addresses individually — never a wildcard prefix, which is what would require administrator rights on Windows. `MainForm` hands it three callbacks (`GetStatus`, `RequestStart`, `RequestStop`); since the listener answers requests on its own background threads, every one of those callbacks marshals back onto the UI thread — `Invoke` for the status read, which needs a return value, `BeginInvoke` for start/stop, which don't. The PIN is regenerated with `RandomNumberGenerator` each time the server starts and compared in constant time, so a failed guess can't be timed to narrow down the right one.
 

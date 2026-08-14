@@ -60,7 +60,7 @@ internal sealed class HistoryListBox : ListBox, IThemedControl
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
         string detail = $"{entry.StartedAt.LocalDateTime:g} · {FormatElapsed(entry.Elapsed)} · " +
-            $"{Loc.IterationsCount(entry.Iterations)} · {ActionModeNames.Describe(entry.Mode)}";
+            $"{Loc.IterationsCount(entry.Iterations)} · {Loc.StepsCount(entry.StepCount)}";
         var detailArea = new Rectangle(row.X, row.Y + 30, row.Width, 18);
         TextRenderer.DrawText(g, detail, Theme.Small, detailArea, Theme.TextSecondary,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);

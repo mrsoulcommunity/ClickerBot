@@ -210,10 +210,13 @@ internal sealed class RunPanel : Card, ILocalizedControl
 
     private void DrawStatusLine(Graphics g)
     {
-        // A lamp, not a label: colour carries the state and the words only name it.
+        // A lamp, not a label: colour carries the state and the words only name it. Held —
+        // paused by the user or waiting on the target window — reads the same as idle: nothing
+        // is actually happening right now, whatever the reason.
+        bool held = _phase is RunPhase.Paused or RunPhase.WaitingForWindow;
         var lamp = new Rectangle(21, 24, 9, 9);
         Color lampColor = !_running ? Theme.Disabled
-            : _phase == RunPhase.Paused ? Theme.TextSecondary
+            : held ? Theme.TextSecondary
             : Theme.Accent;
 
         using (var brush = new SolidBrush(lampColor))
@@ -221,7 +224,7 @@ internal sealed class RunPanel : Card, ILocalizedControl
             g.FillEllipse(brush, lamp);
         }
 
-        if (_running && _phase != RunPhase.Paused)
+        if (_running && !held)
         {
             using var halo = new SolidBrush(Color.FromArgb(48, lampColor));
             g.FillEllipse(halo, Rectangle.Inflate(lamp, 4, 4));
@@ -338,6 +341,7 @@ internal sealed class RunPanel : Card, ILocalizedControl
             {
                 RunPhase.CountingDown => (Loc.StartingIn(_countdown), TextRole.Accent),
                 RunPhase.Paused => (Loc.PausedStatus, TextRole.Primary),
+                RunPhase.WaitingForWindow => (Loc.WaitingForWindow, TextRole.Primary),
                 _ => (Loc.Running, TextRole.Accent),
             };
         }

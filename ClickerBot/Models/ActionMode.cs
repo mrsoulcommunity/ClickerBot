@@ -1,6 +1,11 @@
 namespace ClickerBot;
 
-/// <summary>What one iteration actually does.</summary>
+/// <summary>
+/// What a pre-macro profile's single action used to be. Read once by
+/// <see cref="Profile.Normalize"/> to build the equivalent <see cref="MacroStep"/> sequence for
+/// a profile saved before macros existed, then never read again — see <see cref="Profile"/>'s
+/// legacy fields.
+/// </summary>
 internal enum ActionMode
 {
     /// <summary>Press the key, wait, then click. The original behaviour.</summary>
@@ -16,20 +21,7 @@ internal enum ActionMode
     TypeText,
 }
 
-/// <summary>Human-friendly names for <see cref="ActionMode"/>, shared by the history list and the remote status feed.</summary>
-internal static class ActionModeNames
-{
-    public static string Describe(ActionMode mode) => mode switch
-    {
-        ActionMode.KeyAndClick => Loc.IsPersian ? "کلید + کلیک" : "Key + click",
-        ActionMode.KeyOnly => Loc.IsPersian ? "فقط کلید" : "Key only",
-        ActionMode.ClickOnly => Loc.IsPersian ? "فقط کلیک" : "Click only",
-        ActionMode.TypeText => Loc.IsPersian ? "تایپ متن" : "Type text",
-        _ => mode.ToString(),
-    };
-}
-
-/// <summary>Which mouse button an iteration clicks with.</summary>
+/// <summary>Which mouse button a step clicks or drags with.</summary>
 internal enum ClickButton
 {
     Left,
