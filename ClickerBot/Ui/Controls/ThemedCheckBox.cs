@@ -50,9 +50,17 @@ internal sealed class ThemedCheckBox : CheckBox, IThemedControl
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Theme.BackdropOf(this));
 
-        int top = (Height - BoxSize) / 2;
-        var box = new Rectangle(0, top, BoxSize - 1, BoxSize - 1);
-        using var path = Theme.RoundedRect(box, 5);
+        // Scaled here rather than left as literals: the framework's one auto-scale pass grows
+        // the control's bounds on a high-DPI screen but not the composition painted inside
+        // them, which left a 17px glyph beside text set in a font that had grown with the
+        // display. See Theme.Scale.
+        int size = Theme.Scale(BoxSize, this);
+        int gap = Theme.Scale(TextGap, this);
+        int radius = Theme.Scale(5, this);
+
+        int top = (Height - size) / 2;
+        var box = new Rectangle(0, top, size - 1, size - 1);
+        using var path = Theme.RoundedRect(box, radius);
 
         bool on = Checked;
         Color fill = !Enabled
@@ -79,29 +87,33 @@ internal sealed class ThemedCheckBox : CheckBox, IThemedControl
 
         if (on)
         {
-            DrawCheck(g, box, Enabled ? Theme.OnAccent : Theme.Disabled);
+            DrawCheck(g, box, Enabled ? Theme.OnAccent : Theme.Disabled, size * 1.9f / BoxSize);
         }
 
         if (Text.Length > 0)
         {
-            var text = new Rectangle(BoxSize + TextGap, 0, Width - BoxSize - TextGap, Height);
+            var text = new Rectangle(size + gap, 0, Width - size - gap, Height);
             TextRenderer.DrawText(g, Text, Font, text,
                 Enabled ? Theme.TextPrimary : Theme.Disabled,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
 
-        if (Focused)
+        // Drawn just inside the box rather than as a halo around it. The box starts at x = 0,
+        // so an outer ring sat at x = -3 and was clipped away by the control's own bounds —
+        // which is what left the focus ring flat on one side and doubled-looking on the others.
+        if (Focused && Enabled)
         {
-            var ring = Rectangle.Inflate(box, 3, 3);
-            using var ringPath = Theme.RoundedRect(ring, 7);
-            using var pen = new Pen(Theme.Accent);
+            int inset = Math.Max(1, Theme.Scale(2, this));
+            var ring = Rectangle.Inflate(box, -inset, -inset);
+            using var ringPath = Theme.RoundedRect(ring, Math.Max(1, radius - inset));
+            using var pen = new Pen(on ? Theme.OnAccent : Theme.Accent, Math.Max(1f, Theme.Scale(1, this)));
             g.DrawPath(pen, ringPath);
         }
     }
 
-    private static void DrawCheck(Graphics g, Rectangle box, Color color)
+    private static void DrawCheck(Graphics g, Rectangle box, Color color, float stroke)
     {
-        using var pen = new Pen(color, 1.9f)
+        using var pen = new Pen(color, stroke)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,

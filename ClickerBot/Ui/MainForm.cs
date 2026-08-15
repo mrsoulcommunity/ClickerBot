@@ -210,7 +210,6 @@ internal sealed partial class MainForm : Form
         {
             _shownOnce = true;
             base.SetVisibleCore(false);
-            _tray.Visible = true;
 
             // Suppressing that first Show also means the window is never created, and OnLoad
             // only runs once it is — so without this, a sign-in launch would sit in the tray
@@ -357,6 +356,13 @@ internal sealed partial class MainForm : Form
         // behind it: a --minimized launch shows the tray icon from SetVisibleCore, which runs
         // ahead of the form's load.
         RebuildTrayMenu();
+
+        // On for as long as the app is. It used to be switched on only while the window was
+        // hidden — during a hide-to-tray run, or a --minimized launch — which meant that in
+        // ordinary use there was never an icon in the notification area at all, and the lit
+        // dot that answers "is a run in flight?" had nowhere to show. Stop and Quit live on
+        // its menu too, and those are worth reaching without hunting for the window.
+        _tray.Visible = true;
     }
 
     /// <summary>
@@ -390,11 +396,15 @@ internal sealed partial class MainForm : Form
         old?.Dispose();
     }
 
+    /// <summary>
+    /// Brings the window back from a hide-to-tray run or a <c>--minimized</c> launch. The icon
+    /// itself stays put — it is permanent now, see <see cref="BuildTray"/> — so this only has
+    /// the window to deal with.
+    /// </summary>
     private void RestoreFromTray()
     {
         Show();
         WindowState = FormWindowState.Normal;
-        _tray.Visible = false;
         Activate();
     }
 
@@ -502,7 +512,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{RemoteControlServer.Port}/";
+        string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{_remote.Port}/";
         _remoteStatus.Font = Theme.MonoSmall;
         _remoteStatus.Text = $"{url}   PIN {_remote.Pin}";
         _remoteStatus.Cursor = Cursors.Hand;
@@ -515,7 +525,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{RemoteControlServer.Port}/";
+        string url = _remote.Urls.FirstOrDefault() ?? $"http://127.0.0.1:{_remote.Port}/";
         Clipboard.SetText(url);
         _runPanel.SetIdleMessage(Loc.RemoteCopiedMessage);
     }
@@ -640,6 +650,10 @@ internal sealed partial class MainForm : Form
         _repeatSelector.Items = Loc.RepeatItems;
         _startDelayLabel.Text = Loc.StartDelayLabel;
         _startDelayHint.Text = Loc.StartDelayHint;
+
+        // The repeat card's two value rows are laid out per language rather than once at build
+        // time — see LayoutRepeatRows for why those rows in particular have to mirror.
+        LayoutRepeatRows();
         _restrictWindowCheck.Text = Loc.RestrictToWindow;
         _windowTitleField.Placeholder = Loc.WindowTitlePlaceholder;
         if (!_captureWindowTimer.Enabled)
@@ -1566,7 +1580,6 @@ internal sealed partial class MainForm : Form
         // A one-shot test hiding the window for a fraction of a second would just be a flicker.
         if (!isTest && _hideToTray.Checked)
         {
-            _tray.Visible = true;
             Hide();
         }
 

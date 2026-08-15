@@ -31,6 +31,14 @@ internal sealed partial class MainForm
     private const int CardWidth = 444;
     private const int Gutter = 16;
 
+    // The rail's button stack, measured from the bottom of the window up. Four rows on a 42px
+    // pitch, so the profile list above them can take every pixel that is left rather than
+    // stopping at a fixed height and leaving the bottom of the rail empty.
+    private const int RailPadding = 12;
+    private const int RailRowHeight = 34;
+    private const int RailRowPitch = 42;
+    private const int RailStackTop = WindowHeight - 20 - (RailRowPitch * 3) - RailRowHeight;
+
     private void BuildUi()
     {
         Text = "ClickerBot";
@@ -71,27 +79,31 @@ internal sealed partial class MainForm
 
         _sidebar.Controls.Add(_profilesCaption);
 
-        _profileList.SetBounds(12, 50, 228, 550);
+        // Stops 20px short of the button stack. Every pixel between the caption and the buttons
+        // belongs to the list — it used to be a fixed 550 tall with the stack fixed under it,
+        // which left a rail that ran to the bottom of a 990px window with roughly 220px of
+        // nothing below the last button.
+        _profileList.SetBounds(RailPadding, 50, 228, RailStackTop - 20 - 50);
         _profileList.DisplayMember = nameof(Profile.Name);
         _profileList.SelectedIndexChanged += ProfileList_SelectedIndexChanged;
         _sidebar.Controls.Add(_profileList);
 
-        Configure(_newButton, ButtonKind.Secondary, 12, 612, 228, 34);
+        Configure(_newButton, ButtonKind.Secondary, RailPadding, RailStackTop, 228, RailRowHeight);
         _newButton.Click += (_, _) => CreateProfile();
 
-        Configure(_duplicateButton, ButtonKind.Secondary, 12, 654, 110, 34);
+        Configure(_duplicateButton, ButtonKind.Secondary, RailPadding, RailStackTop + RailRowPitch, 110, RailRowHeight);
         _duplicateButton.Click += (_, _) => DuplicateProfile();
 
-        Configure(_deleteButton, ButtonKind.Danger, 130, 654, 110, 34);
+        Configure(_deleteButton, ButtonKind.Danger, 130, RailStackTop + RailRowPitch, 110, RailRowHeight);
         _deleteButton.Click += (_, _) => DeleteProfile();
 
-        Configure(_importButton, ButtonKind.Secondary, 12, 696, 110, 34);
+        Configure(_importButton, ButtonKind.Secondary, RailPadding, RailStackTop + (RailRowPitch * 2), 110, RailRowHeight);
         _importButton.Click += (_, _) => ImportProfiles();
 
-        Configure(_exportButton, ButtonKind.Secondary, 130, 696, 110, 34);
+        Configure(_exportButton, ButtonKind.Secondary, 130, RailStackTop + (RailRowPitch * 2), 110, RailRowHeight);
         _exportButton.Click += (_, _) => ExportProfiles();
 
-        Configure(_historyButton, ButtonKind.Secondary, 12, 738, 228, 34);
+        Configure(_historyButton, ButtonKind.Secondary, RailPadding, RailStackTop + (RailRowPitch * 3), 228, RailRowHeight);
         _historyButton.Click += (_, _) => RunHistoryDialog.Show(this, _history);
 
         _sidebar.Controls.AddRange(new Control[]
@@ -258,28 +270,22 @@ internal sealed partial class MainForm
         _repeatSelector.SelectedIndexChanged += OnSettingChanged;
         card.Controls.Add(_repeatSelector);
 
-        _repeatLabel.SetBounds(20, 86, 88, 20);
+        // These six are placed by LayoutRepeatRows, which runs from ApplyLanguage: their
+        // arrangement is the one thing in the window that differs between the two languages.
         card.Controls.Add(_repeatLabel);
 
-        _repetitions.SetBounds(114, 80, 118, 32);
         _repetitions.ValueChanged += OnSettingChanged;
         card.Controls.Add(_repetitions);
 
-        _duration.SetBounds(114, 80, 118, 32);
         _duration.ValueChanged += OnSettingChanged;
         card.Controls.Add(_duration);
 
-        _repeatHint.SetBounds(20, 116, 404, 18);
         card.Controls.Add(_repeatHint);
-
-        _startDelayLabel.SetBounds(20, 150, 88, 20);
         card.Controls.Add(_startDelayLabel);
 
-        _startDelay.SetBounds(114, 144, 84, 32);
         _startDelay.ValueChanged += OnSettingChanged;
         card.Controls.Add(_startDelay);
 
-        _startDelayHint.SetBounds(206, 150, 218, 20);
         card.Controls.Add(_startDelayHint);
 
         _restrictWindowCheck.SetBounds(20, 184, 404, 24);
@@ -293,6 +299,58 @@ internal sealed partial class MainForm
         Configure(_useCurrentWindowButton, ButtonKind.Secondary, 328, 214, 96, 32);
         _useCurrentWindowButton.Click += (_, _) => BeginCaptureWindowTitle();
         card.Controls.Add(_useCurrentWindowButton);
+    }
+
+    /// <summary>
+    /// Places the repeat card's two value rows, mirrored in Persian.
+    ///
+    /// Both rows are a sentence with a control in the middle of it — "Start delay [3] seconds
+    /// before the first action" — and a sentence is the one arrangement that cannot survive
+    /// being left in left-to-right order once the words are Persian. Read right to left, the
+    /// English geometry hands the reader the unit before the number it belongs to and the
+    /// label last, which is the row backwards. So in Persian each control is reflected about
+    /// the card's content box and the free-standing hints are right-aligned, leaving the row
+    /// as label, value, unit in the order Persian is actually read.
+    ///
+    /// Only these rows move. The rest of the window keeps its left-to-right geometry in both
+    /// languages — see Loc's class comment — because nothing else in it is a sentence built
+    /// out of controls; a checkbox or a hotkey row reads the same either way.
+    ///
+    /// Called from <see cref="MainForm.ApplyLanguage"/>, which runs once after the form is
+    /// built and again on every switch, and therefore always after the framework's one
+    /// auto-scale pass — hence <see cref="Theme.Scale"/> on every measurement here, the same
+    /// as <see cref="MainForm.ShowStepFields"/>.
+    /// </summary>
+    private void LayoutRepeatRows()
+    {
+        int S(int value) => Theme.Scale(value, _repeatCard);
+
+        // Reflects a control's box about the card's content box, which runs from 20 to 424.
+        static int Flip(int x, int width) => CardWidth - x - width;
+
+        bool rtl = Loc.IsPersian;
+        int Place(int x, int width) => S(rtl ? Flip(x, width) : x);
+
+        var hintAlign = rtl ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft;
+
+        _repeatLabel.SetBounds(Place(20, 88), S(86), S(88), S(20));
+        _repeatLabel.TextAlign = hintAlign;
+
+        _repetitions.SetBounds(Place(114, 118), S(80), S(118), S(32));
+        _duration.SetBounds(Place(114, 118), S(80), S(118), S(32));
+
+        // Full-width already, so only its alignment changes: the sentence hangs off whichever
+        // edge the label above it now starts from.
+        _repeatHint.SetBounds(S(20), S(116), S(404), S(18));
+        _repeatHint.TextAlign = hintAlign;
+
+        _startDelayLabel.SetBounds(Place(20, 88), S(150), S(88), S(20));
+        _startDelayLabel.TextAlign = hintAlign;
+
+        _startDelay.SetBounds(Place(114, 84), S(144), S(84), S(32));
+
+        _startDelayHint.SetBounds(Place(206, 218), S(150), S(218), S(20));
+        _startDelayHint.TextAlign = hintAlign;
     }
 
     private void BuildHotkeyCard()

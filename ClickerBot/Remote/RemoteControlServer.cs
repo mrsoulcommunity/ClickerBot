@@ -11,14 +11,31 @@ namespace ClickerBot;
 /// A tiny local HTTP server that lets a phone on the same network start and stop a run — the
 /// site the app itself hosts, so there is nothing to install on the phone beyond a browser.
 ///
-/// Binds to loopback plus every LAN IPv4 address individually rather than the usual wildcard
-/// prefix (<c>http://+:PORT/</c>): the wildcard form needs either admin rights or a one-time
-/// <c>netsh http add urlacl</c> reservation on Windows, while a concrete address does not,
-/// which is what lets this run under the app's own normal-user manifest with nothing to set up.
+/// Speaks HTTP/1.1 over a plain <see cref="TcpListener"/> rather than going through
+/// <see cref="HttpListener"/>. That is not a preference — it is the only form that works
+/// unelevated. HttpListener is a front end for the kernel's http.sys, which refuses any
+/// prefix that is not loopback-only unless an administrator has first reserved it with
+/// <c>netsh http add urlacl</c>: naming a concrete LAN address is no different from the
+/// <c>http://+:PORT/</c> wildcard in that respect, and both fail with "Access is denied" for
+/// a standard user. A socket has no such gate, so binding every interface here needs nothing
+/// set up in advance.
+///
+/// The one thing left outside the app's control is Windows Firewall, which may still prompt
+/// the first time a phone reaches in from the LAN. Loopback works either way.
 /// </summary>
 internal sealed class RemoteControlServer : IDisposable
 {
-    public const int Port = 8787;
+    /// <summary>The port tried first, and the one the docs and the README name.</summary>
+    public const int PreferredPort = 8787;
+
+    /// <summary>How many ports above <see cref="PreferredPort"/> to fall back through.</summary>
+    private const int PortAttempts = 10;
+
+    /// <summary>A request whose head is larger than this is not one of ours; drop the connection.</summary>
+    private const int MaxHeadBytes = 16 * 1024;
+
+    /// <summary>How long one connection may take to send its request before it is dropped.</summary>
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
     // The phone page's JS reads camelCase fields off the status response, which is the normal
     // convention for a JSON API and not what System.Text.Json emits by default for a PascalCase
@@ -28,15 +45,28 @@ internal sealed class RemoteControlServer : IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    private HttpListener? _listener;
+    private TcpListener? _listener;
     private CancellationTokenSource? _cts;
 
-    public bool IsRunning => _listener is { IsListening: true };
+    public bool IsRunning => _listener is not null;
+
+    /// <summary>The port actually bound, which is <see cref="PreferredPort"/> unless it was taken.</summary>
+    public int Port { get; private set; } = PreferredPort;
 
     public string Pin { get; private set; } = string.Empty;
 
-    /// <summary>Every address the server is actually reachable at, loopback last.</summary>
-    public IReadOnlyList<string> Urls { get; private set; } = Array.Empty<string>();
+    /// <summary>
+    /// Every address the server can be opened at while it is running — best first, loopback
+    /// last. Recomputed on each read rather than captured at <see cref="Start"/>: the socket
+    /// is bound to every interface, so joining a Wi-Fi network after the server came up adds a
+    /// working address, and the one shown in the window should be able to catch up.
+    /// </summary>
+    public IReadOnlyList<string> Urls => IsRunning
+        ? LocalIPv4Addresses()
+            .Select(address => $"http://{address}:{Port}/")
+            .Append($"http://127.0.0.1:{Port}/")
+            .ToList()
+        : Array.Empty<string>();
 
     /// <summary>
     /// Supplied by the owner. All three are invoked from a background thread — the HTTP
@@ -58,37 +88,48 @@ internal sealed class RemoteControlServer : IDisposable
 
         Pin = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
-        var addresses = LocalIPv4Addresses().ToList();
-        var listener = new HttpListener();
-        listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
-        foreach (string address in addresses)
+        // One socket on every interface, which is what makes both the phone's LAN address and
+        // loopback reach the same server. LocalIPv4Addresses is only consulted for the URLs
+        // shown in the app — it no longer decides what is listened on.
+        //
+        // A wildcard bind is exclusive on Windows: it collides with anything already holding
+        // that port on any single address, and a VPN or proxy client can take one for a moment
+        // without warning. Rather than refuse to start over a collision the user did not cause
+        // and cannot see, walk up a few ports — the address the phone needs is shown in the
+        // window either way, port and all, so a different one costs nothing.
+        SocketException? failure = null;
+
+        for (int port = PreferredPort; port < PreferredPort + PortAttempts; port++)
         {
-            listener.Prefixes.Add($"http://{address}:{Port}/");
+            var listener = new TcpListener(IPAddress.Any, port);
+
+            try
+            {
+                listener.Start();
+            }
+            catch (SocketException ex)
+            {
+                failure = ex;
+                continue;
+            }
+
+            Port = port;
+            _listener = listener;
+            _cts = new CancellationTokenSource();
+
+            _ = AcceptLoopAsync(listener, _cts.Token);
+            return null;
         }
 
-        try
-        {
-            listener.Start();
-        }
-        catch (Exception ex) when (ex is HttpListenerException or SocketException)
-        {
-            listener.Close();
-            return Loc.CouldNotStartRemoteServer(Port, ex.Message);
-        }
-
-        _listener = listener;
-        _cts = new CancellationTokenSource();
-        Urls = addresses.Select(a => $"http://{a}:{Port}/").Append($"http://127.0.0.1:{Port}/").ToList();
-
-        _ = AcceptLoopAsync(listener, _cts.Token);
-        return null;
+        Port = PreferredPort;
+        return Loc.CouldNotStartRemoteServer(PreferredPort, failure?.Message ?? string.Empty);
     }
 
     public void Stop()
     {
         _cts?.Cancel();
+        _cts?.Dispose();
         _cts = null;
-        Urls = Array.Empty<string>();
 
         var listener = _listener;
         _listener = null;
@@ -100,9 +141,8 @@ internal sealed class RemoteControlServer : IDisposable
         try
         {
             listener.Stop();
-            listener.Close();
         }
-        catch (ObjectDisposedException)
+        catch (SocketException)
         {
             // Already gone.
         }
@@ -110,111 +150,129 @@ internal sealed class RemoteControlServer : IDisposable
 
     public void Dispose() => Stop();
 
-    private async Task AcceptLoopAsync(HttpListener listener, CancellationToken token)
+    private async Task AcceptLoopAsync(TcpListener listener, CancellationToken token)
     {
         while (!token.IsCancellationRequested)
         {
-            HttpListenerContext context;
+            TcpClient client;
             try
             {
-                context = await listener.GetContextAsync().ConfigureAwait(false);
+                client = await listener.AcceptTcpClientAsync(token).ConfigureAwait(false);
             }
             catch (Exception)
             {
-                // Stop() closes the listener out from under a pending GetContextAsync, which
-                // surfaces here as an exception rather than a clean cancellation — that is the
-                // expected way this loop ends, not a fault worth reporting. Any other cause
-                // leaves the listener equally unusable, so exiting is correct either way.
+                // Stop() closes the listener out from under a pending accept, which surfaces
+                // here rather than as a clean cancellation — that is the expected way this loop
+                // ends, not a fault worth reporting. Any other cause leaves the listener equally
+                // unusable, so exiting is correct either way.
                 break;
             }
 
-            _ = HandleAsync(context);
-        }
-    }
-
-    private async Task HandleAsync(HttpListenerContext context)
-    {
-        try
-        {
-            await RouteAsync(context).ConfigureAwait(false);
-        }
-        catch (Exception)
-        {
-            TrySetStatus(context.Response, 500);
-        }
-        finally
-        {
+            // Deliberately not awaited — one slow phone must not hold up the next connection —
+            // but the call is still wrapped, because a handler that threw on its way to its own
+            // first await would throw here instead, and take this loop down with it. That would
+            // leave the app running and looking connected with nothing listening behind it.
             try
             {
-                context.Response.Close();
+                _ = HandleAsync(client, token);
             }
             catch (Exception)
             {
-                // The phone likely disconnected already; nothing left to do.
+                client.Dispose();
             }
         }
     }
 
-    private async Task RouteAsync(HttpListenerContext context)
+    private async Task HandleAsync(TcpClient client, CancellationToken token)
     {
-        var request = context.Request;
-        var response = context.Response;
-        string path = request.Url?.AbsolutePath ?? "/";
-
-        if (request.HttpMethod == "GET" && path == "/")
+        try
         {
-            await WriteAsync(response, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(BuildPageHtml(Loc.Current)))
-                .ConfigureAwait(false);
-            return;
+            // Its own deadline, so a connection that opens and then says nothing cannot pin a
+            // socket open for as long as the app runs.
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+            deadline.CancelAfter(RequestTimeout);
+
+            using (client)
+            {
+                client.NoDelay = true;
+                using var stream = client.GetStream();
+                var request = await ReadRequestAsync(stream, deadline.Token).ConfigureAwait(false);
+
+                if (request is null)
+                {
+                    return;
+                }
+
+                var response = Route(request);
+                await WriteAsync(stream, response, deadline.Token).ConfigureAwait(false);
+
+                // A graceful half-close after the body: the phone gets the whole response and
+                // then end-of-stream, instead of the reset an outright Close would send if
+                // anything were still in flight.
+                client.Client.Shutdown(SocketShutdown.Send);
+            }
+        }
+        catch (Exception)
+        {
+            // A dropped phone, a timed-out connection, or a request that was never HTTP. None
+            // of them is worth surfacing in the window: the next poll reconnects.
+        }
+    }
+
+    private Response Route(Request request)
+    {
+        if (request.Method == "GET" && request.Path == "/")
+        {
+            return new Response(200, "text/html; charset=utf-8",
+                Encoding.UTF8.GetBytes(BuildPageHtml(Loc.Current)));
         }
 
-        if (request.HttpMethod == "GET" && path == "/api/status")
+        // Behind the PIN like every other endpoint: on a shared network, the profile name and
+        // whether a run is in flight are nobody else's business, and rejecting an unknown PIN
+        // here is also how the page learns to show its lock screen again after the app has
+        // restarted with a fresh one.
+        if (request.Method == "GET" && request.Path == "/api/status")
         {
+            if (!HasValidPin(request))
+            {
+                return Response.Empty(401);
+            }
+
             var payload = GetStatus?.Invoke() ?? new RemoteStatusPayload(false, "", "", 0, null, 0, "Not ready");
-            await WriteAsync(response, "application/json; charset=utf-8",
-                    JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions))
-                .ConfigureAwait(false);
-            return;
+            return new Response(200, "application/json; charset=utf-8",
+                JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
         }
 
-        if (request.HttpMethod == "POST" && path == "/api/verify")
+        if (request.Method == "POST" && request.Path == "/api/verify")
         {
-            response.StatusCode = HasValidPin(request) ? 200 : 401;
-            return;
+            return Response.Empty(HasValidPin(request) ? 200 : 401);
         }
 
-        if (request.HttpMethod == "POST" && path == "/api/start")
+        if (request.Method == "POST" && request.Path is "/api/start" or "/api/stop")
         {
             if (!HasValidPin(request))
             {
-                response.StatusCode = 401;
-                return;
+                return Response.Empty(401);
             }
 
-            RequestStart?.Invoke();
-            response.StatusCode = 200;
-            return;
-        }
-
-        if (request.HttpMethod == "POST" && path == "/api/stop")
-        {
-            if (!HasValidPin(request))
+            if (request.Path == "/api/start")
             {
-                response.StatusCode = 401;
-                return;
+                RequestStart?.Invoke();
+            }
+            else
+            {
+                RequestStop?.Invoke();
             }
 
-            RequestStop?.Invoke();
-            response.StatusCode = 200;
-            return;
+            return Response.Empty(200);
         }
 
-        response.StatusCode = 404;
+        return Response.Empty(404);
     }
 
-    private bool HasValidPin(HttpListenerRequest request)
+    private bool HasValidPin(Request request)
     {
-        string? supplied = request.Headers["X-Pin"];
+        string? supplied = request.Header("X-Pin");
         return !string.IsNullOrEmpty(supplied) && FixedTimeEquals(supplied, Pin);
     }
 
@@ -239,28 +297,159 @@ internal sealed class RemoteControlServer : IDisposable
         return diff == 0;
     }
 
-    private static async Task WriteAsync(HttpListenerResponse response, string contentType, byte[] bytes)
+    // --- HTTP/1.1, the little of it this needs ------------------------------
+    //
+    // Four fixed routes, requests that carry no body worth reading, and one client that is
+    // always the page below. That is small enough to parse by hand, and doing so is what
+    // removes the http.sys URL reservation from the picture — see the class comment.
+
+    private sealed record Request(string Method, string Path, IReadOnlyDictionary<string, string> Headers)
     {
-        response.ContentType = contentType;
-        response.ContentLength64 = bytes.Length;
-        await response.OutputStream.WriteAsync(bytes).ConfigureAwait(false);
+        public string? Header(string name) => Headers.TryGetValue(name, out string? value) ? value : null;
     }
 
-    private static void TrySetStatus(HttpListenerResponse response, int statusCode)
+    private sealed record Response(int Status, string? ContentType, byte[] Body)
     {
-        try
+        public static Response Empty(int status) => new(status, null, Array.Empty<byte>());
+    }
+
+    /// <returns>Null when the connection closed early or never sent a request this understands.</returns>
+    private static async Task<Request?> ReadRequestAsync(NetworkStream stream, CancellationToken token)
+    {
+        var head = new MemoryStream();
+        var buffer = new byte[2048];
+        int terminator = -1;
+
+        while (terminator < 0 && head.Length < MaxHeadBytes)
         {
-            response.StatusCode = statusCode;
+            int read = await stream.ReadAsync(buffer, token).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return null;
+            }
+
+            head.Write(buffer, 0, read);
+            terminator = IndexOfHeadEnd(head.GetBuffer(), (int)head.Length);
         }
-        catch (Exception)
+
+        if (terminator < 0)
         {
-            // Headers may already be sent; nothing more to do.
+            return null;
+        }
+
+        string text = Encoding.UTF8.GetString(head.GetBuffer(), 0, terminator);
+        string[] lines = text.Split("\r\n");
+        string[] parts = lines[0].Split(' ');
+        if (parts.Length < 2)
+        {
+            return null;
+        }
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 1; i < lines.Length; i++)
+        {
+            int colon = lines[i].IndexOf(':');
+            if (colon > 0)
+            {
+                headers[lines[i][..colon].Trim()] = lines[i][(colon + 1)..].Trim();
+            }
+        }
+
+        // Nothing here reads a request body, but one that was announced still has to come off
+        // the socket before the response goes back, or the phone can see its own unsent bytes
+        // rejected as a reset instead of seeing the reply.
+        if (headers.TryGetValue("Content-Length", out string? length) &&
+            int.TryParse(length, out int declared) && declared > 0)
+        {
+            int alreadyRead = (int)head.Length - (terminator + 4);
+            await DrainAsync(stream, Math.Min(declared, MaxHeadBytes) - alreadyRead, token).ConfigureAwait(false);
+        }
+
+        // Query strings and fragments are not used by any route, so the path alone is the key.
+        string target = parts[1];
+        int cut = target.IndexOfAny(new[] { '?', '#' });
+        return new Request(parts[0], cut < 0 ? target : target[..cut], headers);
+    }
+
+    private static int IndexOfHeadEnd(byte[] bytes, int length)
+    {
+        for (int i = 0; i + 3 < length; i++)
+        {
+            if (bytes[i] == (byte)'\r' && bytes[i + 1] == (byte)'\n' &&
+                bytes[i + 2] == (byte)'\r' && bytes[i + 3] == (byte)'\n')
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static async Task DrainAsync(NetworkStream stream, int count, CancellationToken token)
+    {
+        var sink = new byte[2048];
+        while (count > 0)
+        {
+            int read = await stream.ReadAsync(sink.AsMemory(0, Math.Min(sink.Length, count)), token)
+                .ConfigureAwait(false);
+            if (read == 0)
+            {
+                return;
+            }
+
+            count -= read;
         }
     }
 
-    /// <summary>Every up, non-loopback, non-tunnel IPv4 address — the ones a phone could reach.</summary>
+    private static async Task WriteAsync(NetworkStream stream, Response response, CancellationToken token)
+    {
+        var head = new StringBuilder()
+            .Append("HTTP/1.1 ").Append(response.Status).Append(' ').Append(ReasonFor(response.Status)).Append("\r\n");
+
+        if (response.ContentType is not null)
+        {
+            head.Append("Content-Type: ").Append(response.ContentType).Append("\r\n");
+        }
+
+        // The page and its status are both live state; a cached copy of either would show the
+        // phone a run that ended minutes ago.
+        head.Append("Content-Length: ").Append(response.Body.Length).Append("\r\n")
+            .Append("Cache-Control: no-store\r\n")
+            .Append("Connection: close\r\n\r\n");
+
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(head.ToString()), token).ConfigureAwait(false);
+
+        if (response.Body.Length > 0)
+        {
+            await stream.WriteAsync(response.Body, token).ConfigureAwait(false);
+        }
+
+        await stream.FlushAsync(token).ConfigureAwait(false);
+    }
+
+    private static string ReasonFor(int status) => status switch
+    {
+        200 => "OK",
+        401 => "Unauthorized",
+        404 => "Not Found",
+        _ => "Error",
+    };
+
+    /// <summary>
+    /// Every up IPv4 address this machine has, ordered so the one a phone on the same router
+    /// can actually open comes first.
+    ///
+    /// Ordering, not just filtering, because "which of my addresses is the LAN one?" has no
+    /// single answer a machine can look up. A PC with a VPN client, a virtual-machine host
+    /// adapter or a tunnelling proxy installed has several private addresses up at once, and
+    /// enumeration order is arbitrary — this used to hand the window whichever came back first,
+    /// which on a machine running a WireGuard tunnel was the tunnel's own address. That address
+    /// works from the PC and from nowhere else, so the phone got a page that never loaded.
+    /// </summary>
     private static IEnumerable<string> LocalIPv4Addresses()
     {
+        var candidates = new List<(int Rank, string Address)>();
+
         foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (nic.OperationalStatus != OperationalStatus.Up ||
@@ -269,7 +458,17 @@ internal sealed class RemoteControlServer : IDisposable
                 continue;
             }
 
-            foreach (var info in nic.GetIPProperties().UnicastAddresses)
+            var properties = nic.GetIPProperties();
+
+            // A default gateway means the adapter is attached to a real network with other
+            // machines on it, rather than being a host-only bridge to a virtual machine.
+            bool routed = properties.GatewayAddresses.Any(gateway =>
+                gateway.Address.AddressFamily == AddressFamily.InterNetwork &&
+                !gateway.Address.Equals(IPAddress.Any));
+
+            int rank = RankOf(nic, routed);
+
+            foreach (var info in properties.UnicastAddresses)
             {
                 if (info.Address.AddressFamily != AddressFamily.InterNetwork)
                 {
@@ -283,10 +482,51 @@ internal sealed class RemoteControlServer : IDisposable
                     continue;
                 }
 
-                yield return info.Address.ToString();
+                candidates.Add((rank, info.Address.ToString()));
             }
         }
+
+        return candidates
+            .OrderBy(candidate => candidate.Rank)
+            .ThenBy(candidate => candidate.Address, StringComparer.Ordinal)
+            .Select(candidate => candidate.Address)
+            .ToList();
     }
+
+    /// <summary>Lower is more likely to be the address a phone on the same network can open.</summary>
+    private static int RankOf(NetworkInterface nic, bool routed)
+    {
+        // Wi-Fi and Ethernet are the only media a phone shares a router with. A VPN or proxy
+        // adapter reports one of the virtual ifTypes instead, none of which is in this set.
+        bool physical = nic.NetworkInterfaceType
+            is NetworkInterfaceType.Ethernet
+            or NetworkInterfaceType.GigabitEthernet
+            or NetworkInterfaceType.FastEthernetT
+            or NetworkInterfaceType.FastEthernetFx
+            or NetworkInterfaceType.Wireless80211;
+
+        // Some virtual adapters do claim to be Ethernet — VirtualBox's host-only bridge is the
+        // common one — so the name is worth a look as well as the type.
+        bool named = LooksVirtual(nic.Description) || LooksVirtual(nic.Name);
+
+        return (physical, named, routed) switch
+        {
+            (true, false, true) => 0,
+            (true, false, false) => 1,
+            (false, false, true) => 2,
+            (true, true, _) => 3,
+            _ => 4,
+        };
+    }
+
+    private static readonly string[] VirtualAdapterMarkers =
+    {
+        "virtual", "vmware", "hyper-v", "vbox", "tap-windows", "tap adapter", "tunnel",
+        "wireguard", "wintun", "openvpn", "docker", "wsl", "pseudo", "loopback", "bluetooth",
+    };
+
+    private static bool LooksVirtual(string name) =>
+        VirtualAdapterMarkers.Any(marker => name.Contains(marker, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Fills in <see cref="PageHtml"/>'s handful of <c>__TOKEN__</c> placeholders for the
@@ -511,6 +751,9 @@ internal sealed class RemoteControlServer : IDisposable
       let pin = localStorage.getItem('clickerbot-pin') || '';
       let busy = false;
       let lastRunning = false;
+      // Bumped every time polling restarts, so a loop left over from a previous PIN sees a
+      // stale generation and stops instead of racing the new one.
+      let generation = 0;
 
       function fmtElapsed(s){
         s = Math.max(0, Math.floor(s));
@@ -548,9 +791,27 @@ internal sealed class RemoteControlServer : IDisposable
         connText.textContent = L.connected;
       }
 
-      async function poll() {
+      // ClickerBot draws a fresh PIN every time it starts, so the one saved here goes stale on
+      // its own the next time the app is restarted. Forgetting it and showing the lock screen
+      // is the whole recovery: the phone does not have to be told the app went away.
+      function relock(message) {
+        generation++;
+        pin = '';
+        localStorage.removeItem('clickerbot-pin');
+        conn.classList.remove('live');
+        connText.textContent = L.locked;
+        actionBtn.disabled = true;
+        showLock(message);
+      }
+
+      async function poll(gen) {
+        if (gen !== generation) return;
         try {
           const res = await api('/api/status');
+          if (res.status === 401) {
+            relock(L.pinRejected);
+            return;
+          }
           if (res.ok) {
             renderStatus(await res.json());
           } else {
@@ -560,9 +821,12 @@ internal sealed class RemoteControlServer : IDisposable
         } catch (e) {
           conn.classList.remove('live');
           connText.textContent = L.disconnected;
-        } finally {
-          setTimeout(poll, 1500);
         }
+        setTimeout(() => poll(gen), 1500);
+      }
+
+      function startPolling() {
+        poll(++generation);
       }
 
       actionBtn.addEventListener('click', async () => {
@@ -573,7 +837,7 @@ internal sealed class RemoteControlServer : IDisposable
         try {
           const res = await api(path, { method: 'POST' });
           if (res.status === 401) {
-            showLock(L.pinRejected);
+            relock(L.pinRejected);
             return;
           }
           hint.textContent = res.ok ? ' ' : await res.text();
@@ -614,7 +878,7 @@ internal sealed class RemoteControlServer : IDisposable
             localStorage.setItem('clickerbot-pin', pin);
             lock.classList.add('hidden');
             lockError.textContent = '';
-            poll();
+            startPolling();
           } else {
             lockError.textContent = L.wrongPin;
             boxes.forEach(b => b.value = '');
@@ -632,7 +896,7 @@ internal sealed class RemoteControlServer : IDisposable
 
       if (pin) {
         lock.classList.add('hidden');
-        poll();
+        startPolling();
       } else {
         showLock('');
         connText.textContent = L.locked;

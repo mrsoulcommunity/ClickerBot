@@ -74,7 +74,8 @@ Built with .NET 8 and Windows Forms — every control is custom-drawn, so the in
 | **Import / export** | Share a profile file between machines, or keep a backup outside `%APPDATA%`, without touching the rest of your saved profiles. |
 | **Run history** | The last 50 runs — profile, step count, when, how long, how many iterations, how it ended — kept in a themed dialog off the sidebar, so a run left going unattended has something to show for itself afterwards. |
 | **Keep above other windows** | Optionally pins ClickerBot on top so the run panel stays visible over the window being automated. |
-| **Hide to the notification area while running** | Drops the window out of the way for the duration of a run and restores it automatically when the run ends. The tray icon itself shows whether a run is active. |
+| **Notification-area icon** | Present the whole time ClickerBot is running, with Stop and Quit on its right-click menu. Its indicator dot lights amber while a run is in flight, so the taskbar answers "is it going?" without the window on screen. |
+| **Hide to the notification area while running** | Drops the window out of the way for the duration of a run and restores it automatically when the run ends. |
 | **Start with Windows** | Launches ClickerBot, minimized to the tray, when you sign in — toggled through the same per-user Run key Windows itself uses, no installer needed. |
 | **Sound when you're not looking** | Plays a system sound when a run ends while the window is hidden or unfocused — silent if you're already watching it finish. |
 | **Auto-save** | Changes are persisted to disk automatically a moment after you make them — nothing to remember to save. |
@@ -100,7 +101,7 @@ The app runs with normal user rights (`asInvoker`). See [Troubleshooting](#️-t
 1. Clone or download this repository.
 2. Double-click **`Run.bat`** in the repository root.
 
-That's it. On the first run `Run.bat` builds the project in Release mode (once), then launches the app. Every run after that starts the app immediately — no terminal required.
+That's it. `Run.bat` builds the project in Release mode and then launches it — no terminal required. It builds on *every* run, not just the first: the build is incremental, so there is nothing to compile most of the time and it costs a second or two, and that is what guarantees you are running the code that is actually in the folder rather than an `.exe` left over from before your last `git pull`.
 
 ```bash
 git clone https://github.com/mrsoulcommunity/ClickerBot.git
@@ -160,9 +161,13 @@ Tick **Enable mobile control** in the *Remote* card and ClickerBot starts a smal
 
 **What it can and can't do:** the page can start a run, stop it, and watch it happen — the same profile and settings you last configured on the desktop. It can't change any setting, switch profiles, or configure a new run; for that you're still at the keyboard. That split is deliberate: the phone is a remote for a run you already set up, not a second cockpit.
 
-**On security, honestly:** the PIN is regenerated every time the server starts, and it gates every action that changes state — starting, stopping, even confirming the PIN itself. That's enough to stop a random device on the same Wi-Fi from touching it by accident, but it's LAN-toy security, not a hardened login: there's no rate limiting or account lockout, and the read-only status page doesn't require the PIN at all. Treat it like any other local-network convenience feature — fine for your own home or office Wi-Fi, not something to expose past your router.
+**On security, honestly:** the PIN is regenerated every time the server starts, and it gates every request the page makes — starting, stopping, reading the status, and confirming the PIN itself. That's enough to stop a random device on the same Wi-Fi from touching it by accident, but it's LAN-toy security, not a hardened login: there's no rate limiting or account lockout, and the traffic is plain HTTP. Treat it like any other local-network convenience feature — fine for your own home or office Wi-Fi, not something to expose past your router.
 
-**No firewall prompts, no admin rights.** ClickerBot binds the server to `127.0.0.1` plus each of your machine's real LAN addresses individually, rather than to a wildcard address — the wildcard is what actually requires elevated permissions on Windows, so this feature needs none.
+**No admin rights.** The server is a plain socket listener rather than a `System.Net.HttpListener`, which is what keeps it out of the way of Windows' URL reservations: the kernel's HTTP stack refuses any address that isn't loopback-only unless an administrator has reserved it first with `netsh http add urlacl`, and naming a concrete LAN address does not get you around that. A socket has no such gate. Windows Firewall may still ask once, the first time a phone reaches in — that prompt is normal, and answering yes is all the setup there is.
+
+**If the port is busy**, ClickerBot walks up from `8787` until it finds a free one. The address under the checkbox always shows the port actually in use, so just read it off there rather than assuming `8787`.
+
+**Which address it shows.** A machine running a VPN, a proxy, or a virtual-machine host has several private addresses up at once, and most of them only work from that machine. ClickerBot listens on all of them but shows the one your phone can actually open first, preferring a real Wi-Fi or Ethernet adapter that has a route off the machine over a tunnel or a host-only bridge.
 
 ---
 
@@ -212,7 +217,7 @@ The mark is a capture reticle — four corner brackets, echoing the app's own Pi
 | --- | --- | --- |
 | The compiled `.exe`'s own file icon (Explorer, the taskbar shortcut before launch, Alt-Tab) | Always idle — nothing is running yet | `ClickerBot/Assets/AppIcon.ico`, wired in via `<ApplicationIcon>` |
 | The window's title bar and taskbar icon | Idle / running, live | Drawn at runtime by `AppIcon.cs` |
-| The notification-area icon while hidden to tray | Idle / running, live | Same `AppIcon.cs` |
+| The notification-area icon, present the whole time the app is | Idle / running, live | Same `AppIcon.cs` |
 | This README | The lit mark | `ClickerBot/Assets/logo.png` |
 
 The runtime copy exists because the compiled icon can't relight itself — nothing is running when Explorer shows it. `AppIcon.cs` draws the identical mark with GDI+ instead of loading a raster asset, so it can swap the dot's color the instant a run starts or stops, the same way every other themed control in the app repaints instead of being replaced.
@@ -387,7 +392,9 @@ Two things are deliberately not recorded. Input over ClickerBot's own window is 
 
 **A profile saved before macros existed** carries its old single-action fields (`Mode`, `Key`, `ClickX`, and so on) marked as legacy, read exactly once. `Profile.Normalize` calls `BuildLegacyMigrationSteps` whenever a profile's `Steps` list is empty, reconstructing the equivalent sequence — the same path a brand-new profile's untouched property defaults go through, which is what gives it a sensible first step to look at instead of an empty list.
 
-**Mobile control** runs on `System.Net.HttpListener`, bound to `127.0.0.1` and each of the machine's real LAN IPv4 addresses individually — never a wildcard prefix, which is what would require administrator rights on Windows. `MainForm` hands it three callbacks (`GetStatus`, `RequestStart`, `RequestStop`); since the listener answers requests on its own background threads, every one of those callbacks marshals back onto the UI thread — `Invoke` for the status read, which needs a return value, `BeginInvoke` for start/stop, which don't. The PIN is regenerated with `RandomNumberGenerator` each time the server starts and compared in constant time, so a failed guess can't be timed to narrow down the right one.
+**Mobile control** speaks HTTP/1.1 over a plain `TcpListener` bound to `IPAddress.Any`. It deliberately does not use `System.Net.HttpListener`: that class is a front end for the kernel's `http.sys`, which rejects any prefix that is not loopback-only unless an administrator has reserved it with `netsh http add urlacl` — and a concrete LAN address is no better off than the `http://+:PORT/` wildcard in that respect. Both fail with "Access is denied" for a standard user, which is why the server is a socket instead. Four fixed routes with no request bodies worth reading is a small enough surface to parse by hand. `MainForm` hands it three callbacks (`GetStatus`, `RequestStart`, `RequestStop`); since connections are handled on background threads, every one of those callbacks marshals back onto the UI thread — `Invoke` for the status read, which needs a return value, `BeginInvoke` for start/stop, which don't. The PIN is regenerated with `RandomNumberGenerator` each time the server starts and compared in constant time, so a failed guess can't be timed to narrow down the right one; because it changes on every start, the page treats a `401` on its status poll as "this app restarted" and re-shows its lock screen rather than sitting on a status that stopped updating.
+
+**Which LAN address to show** is a guess, not a lookup: a machine with a VPN client, a tunnelling proxy or a VirtualBox host-only bridge has several private IPv4 addresses up simultaneously, and `NetworkInterface.GetAllNetworkInterfaces` returns them in no useful order. `LocalIPv4Addresses` ranks rather than filters — a real Wi-Fi or Ethernet `NetworkInterfaceType` that also has a default gateway wins, an adapter whose name gives it away as virtual loses, and the rest fall in between. The socket is bound to every interface regardless, so a wrong guess only costs the label a better suggestion.
 
 **Language** mirrors the theme's own architecture: `Loc` exposes every string as a property and raises `Changed` when `Apply` switches languages, the same shape as `Theme`. `ThemeManager.Attach` already walks the control tree on a theme switch with painting suspended so the change lands in one frame; it now does the same walk on a language switch, calling an `ApplyLanguage()` on every control that implements `ILocalizedControl` and, for the window itself, a callback `MainForm` supplies. The mobile page takes a different path: since it is plain HTML re-served on every request rather than a long-lived control tree, `RemoteControlServer` just fills a handful of `__TOKEN__` placeholders and a labels object from `Loc.Current` each time the page is requested, and sets `dir="rtl"` — safe to mirror for real there, since a browser handles that natively; the desktop side deliberately does not attempt it, since mirroring fifteen owner-drawn GDI+ controls by hand is a much larger risk for the same benefit.
 
@@ -439,8 +446,13 @@ Input over ClickerBot's own window is never recorded, and neither are the profil
 **Starting with Windows is checked, but ClickerBot didn't launch at sign-in.**
 Some third-party startup managers and enterprise policies clear entries from the per-user Run key. Re-check the box, or add ClickerBot through your startup manager pointing at the ClickerBot executable with a `--minimized` argument.
 
+**I can't find ClickerBot's icon in the notification area.**
+It is there for as long as the app is running, but Windows 11 hides every newly registered tray icon behind the `⌃` chevron by default. Click the chevron to see it, and drag it down onto the taskbar to keep it visible — or set it permanently under *Settings → Personalisation → Taskbar → Other system tray icons*. That default is Windows', not something an application chooses.
+
 **My phone can't reach the mobile control page.**
-Both devices need to be on the same Wi-Fi network — the server only binds to your machine's real LAN addresses, not the public internet. Check the URL shown under the checkbox in the *Remote* card was copied correctly, and that Windows Firewall isn't blocking ClickerBot on a network you've marked Public (accept the firewall prompt, or allow it manually for Private/Domain networks).
+Both devices need to be on the same Wi-Fi network — the server listens on your LAN, not the public internet. Use the address shown under the checkbox in the *Remote* card exactly as written, port included: if you have a VPN, a proxy client, or virtual-machine software installed, your PC has several private addresses at once and only the LAN one works from a phone. ClickerBot already picks that one for you, so read it off the card rather than from `ipconfig`. If it still won't load, check Windows Firewall isn't blocking ClickerBot on a network you've marked Public (accept the firewall prompt, or allow it manually for Private/Domain networks).
+
+**The mobile page loads on the PC but not on the phone.** Some VPN and proxy clients route the phone's traffic away from the local network entirely. Turn the VPN off on the phone — not on the PC — and try the address again.
 
 **The mobile page asks for the PIN again after it worked before.**
 The PIN is regenerated every time the server starts — including every time you toggle *Enable mobile control* off and back on, or restart ClickerBot. Read the new one off the *Remote* card.
